@@ -268,23 +268,12 @@ class _TranspileConfigChecker:
             logger.debug(f"Setting overrides_file to: {overrides_file!r}")
             msg = f"Invalid path for '--overrides-file', does not exist: {overrides_file}"
             self._validate_overrides_file(overrides_file, msg)
-            try:
-                self._set_config_transpiler_option("overrides-file", overrides_file)
-            except ValueError:
-                # TODO: Update the `config.yml` format to disallow incompatible `transpiler_options`.
-                msg = "Cannot use --overrides-file; workspace config.yml has incompatible transpiler_options."
-                raise_validation_exception(msg)
+            self._set_config_transpiler_option("overrides-file", overrides_file)
 
     def use_target_technology(self, target_technology: str | None) -> None:
         if target_technology is not None:
             logger.debug(f"Setting target_technology to: {target_technology!r}")
-            # Cannot validate this here: depends on the transpiler engine, and will be checked later.
-            try:
-                self._set_config_transpiler_option("target-tech", target_technology)
-            except ValueError:
-                # TODO: Update the `config.yml` format to disallow incompatible `transpiler_options`.
-                msg = "Cannot use --target-technology; workspace config.yml has incompatible transpiler_options."
-                raise_validation_exception(msg)
+            self._set_config_transpiler_option("target-tech", target_technology)
 
     @staticmethod
     def _validate_input_source(input_source: str, msg: str) -> None:
@@ -357,16 +346,11 @@ class _TranspileConfigChecker:
             self._config = dataclasses.replace(self._config, schema_name=schema_name)
 
     def _set_config_transpiler_option(self, flag: str, value: str) -> None:
-        transpiler_options: JsonObject
-        match self._config.transpiler_options:
-            case None:
-                transpiler_options = {flag: value}
-            case Mapping() as found_options:
-                transpiler_options = {**found_options, flag: value}
-            case found_options:
-                # TODO: Update `config.yml' to constrain `transpiler_options` to be a dict[str, str].
-                msg = f"Incompatible transpiler options configured, must be a mapping: {found_options!r}"
-                raise ValueError(msg)
+        existing = self._config.transpiler_options
+        if existing is None:
+            transpiler_options = {flag: value}
+        else:
+            transpiler_options = {**existing, flag: value}
         self._config = dataclasses.replace(self._config, transpiler_options=transpiler_options)
 
     def _configure_transpiler_config_path(self, source_dialect: str) -> TranspileEngine | None:
@@ -497,12 +481,7 @@ class _TranspileConfigChecker:
         if self._config.source_dialect is None:
             raise ValueError("Source dialect must be set before checking transpiler options.")
         options_for_dialect = engine.options_for_dialect(self._config.source_dialect)
-        transpiler_options = self._config.transpiler_options
-        if transpiler_options is None:
-            transpiler_options = {}
-        elif not isinstance(transpiler_options, Mapping):
-            logger.warning(f"Ignoring transpiler_options in config.yml, must be a mapping: {transpiler_options!r}")
-            transpiler_options = {}
+        transpiler_options = self._config.transpiler_options or {}
         # Only checks if the option is present, does not validate the value.
         # TODO: Validate the value for CHOICE/CONFIRM options.
         # TODO: Handle FORCE options: these are fixed by the transpiler, and cannot be overridden.
