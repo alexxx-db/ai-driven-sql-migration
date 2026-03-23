@@ -30,7 +30,13 @@ def check_for_unsupported_lca(
         root_expressions: Iterable[Expression] = [pe for pe in all_parsed_expressions if pe is not None]
     except (ParseError, TokenError, UnsupportedError) as e:
         logger.warning(f"Error while preprocessing {file_path}: {e}")
-        return None
+        return TranspileError(
+            "LCA_PREPROCESS_ERROR",
+            ErrorKind.ANALYSIS,
+            ErrorSeverity.WARNING,
+            file_path,
+            f"LCA preprocessing failed, skipping lateral column alias check: {e}",
+        )
 
     aliases_in_where = set()
     aliases_in_window = set()

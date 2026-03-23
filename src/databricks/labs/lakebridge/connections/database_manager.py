@@ -122,7 +122,10 @@ class MSSQLConnector(_BaseConnector):
             database=db_name,
             query=query_params,
         )
-        return create_engine(connection_string)
+        # URL.__repr__ masks the password, but render_as_string does not by default.
+        # Use hide_password=True if logging the connection string for debugging.
+        logger.debug(f"Connecting to MSSQL: {connection_string.render_as_string(hide_password=True)}")
+        return create_engine(connection_string, hide_parameters=True)
 
 
 class DatabaseManager:
@@ -146,7 +149,8 @@ class DatabaseManager:
         try:
             return self.connector.fetch(query)
         except OperationalError as e:
-            error_msg = f"Error connecting to the database: {e}"
+            # Avoid logging the full exception which may contain connection strings with credentials
+            error_msg = "Error connecting to the database. Check connection settings and credentials."
             logger.error(error_msg)
             raise ConnectionError(error_msg) from e
 

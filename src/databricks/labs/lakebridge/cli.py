@@ -15,12 +15,11 @@ from typing import NoReturn, TextIO
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 from databricks.sdk import WorkspaceClient
 
-from databricks.labs.blueprint.cli import App
 from databricks.labs.blueprint.entrypoint import get_logger
 from databricks.labs.blueprint.installation import RootJsonValue, JsonObject, JsonValue
 from databricks.labs.blueprint.tui import Prompts
 
-
+from databricks.labs.lakebridge.app import Lakebridge
 from databricks.labs.lakebridge.assessments.configure_assessment import create_assessment_configurator
 from databricks.labs.lakebridge.assessments import PROFILER_SOURCE_SYSTEM, PRODUCT_NAME
 from databricks.labs.lakebridge.assessments.profiler import Profiler
@@ -46,34 +45,6 @@ from databricks.labs.lakebridge.transpiler.transpile_engine import TranspileEngi
 
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorSeverity
 from databricks.labs.switch.lsp import get_switch_dialects
-
-
-# Subclass to allow controlled access to protected methods.
-class Lakebridge(App):
-
-    def create_workspace_client(self) -> WorkspaceClient:
-        """Create a workspace client, with the appropriate product and version information.
-
-        This is intended only for use by the install/uninstall hooks.
-        """
-        self._patch_databricks_host()
-        return self._workspace_client()
-
-    def _log_level(self, raw: str) -> int:
-        """Convert the log-level provided by the Databricks CLI into a logging level supported by Python."""
-        log_level = super()._log_level(raw)
-        # Due to an issue in the handoff of the intended logging level from the Databricks CLI to our
-        # application, we can't currently distinguish between --log-level=WARN and nothing at all, where we
-        # prefer (and the application logging expects) INFO.
-        #
-        # Rather than default to only have WARNING logs show, it's preferable to default to INFO and have
-        # --log-level=WARN not work for now.
-        #
-        # See: https://github.com/databrickslabs/lakebridge/issues/2167
-        # TODO: Remove this once #2167 has been resolved.
-        if log_level == logging.WARNING:
-            log_level = logging.INFO
-        return log_level
 
 
 lakebridge = Lakebridge(__file__)
@@ -751,8 +722,7 @@ def install_transpile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Install or upgrade the Lakebridge transpilers."""
-    # Avoid circular imports.
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=import-outside-toplevel
 
     is_interactive = interactive_mode(interactive)
     ctx = ApplicationContext(w)
@@ -820,8 +790,7 @@ def configure_reconcile(
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Configure the Lakebridge reconciliation module"""
-    # Avoid circular imports.
-    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=import-outside-toplevel
 
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "configure-reconcile")

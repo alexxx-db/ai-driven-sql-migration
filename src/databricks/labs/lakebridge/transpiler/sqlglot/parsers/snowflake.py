@@ -368,11 +368,11 @@ class Snowflake(SqlglotSnowflake):
             self.size = len(sql)
             try:
                 self._scan()
-            except Exception as e:
-                start = self._current - 50
-                end = self._current + 50
-                start = start if start > 0 else 0
-                end = end if end < self.size else self.size - 1
+            except TokenError:
+                raise
+            except (ValueError, TypeError, IndexError, KeyError) as e:
+                start = max(self._current - 50, 0)
+                end = min(self._current + 50, self.size - 1)
                 context = self.sql[start:end]
                 msg = f"Error tokenizing '{context}'"
                 raise TokenError(msg) from e

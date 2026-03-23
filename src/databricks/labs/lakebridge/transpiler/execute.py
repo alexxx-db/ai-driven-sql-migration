@@ -422,9 +422,12 @@ def verify_workspace_client(workspace_client: WorkspaceClient) -> WorkspaceClien
     """
 
     # Using reflection to set right value for _product_info for telemetry
-    product_info = getattr(workspace_client.config, '_product_info', (None, None))
-    if product_info[0] != "lakebridge":
-        setattr(workspace_client.config, '_product_info', ('lakebridge', __version__))
+    try:
+        product_info = getattr(workspace_client.config, '_product_info', (None, None))
+        if product_info[0] != "lakebridge":
+            setattr(workspace_client.config, '_product_info', ('lakebridge', __version__))
+    except (AttributeError, TypeError, IndexError):
+        logger.debug("Could not set product info on workspace client config; SDK internals may have changed.")
 
     return workspace_client
 
