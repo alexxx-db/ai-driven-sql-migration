@@ -98,7 +98,6 @@ def transpile(  # pylint: disable=too-many-arguments
     """Transpiles source dialect to databricks dialect"""
     if ctx is None:
         ctx = ApplicationContext(w)
-    del w
     logger.debug(f"Preconfigured transpiler config: {ctx.transpile_config!r}")
     ctx.add_user_agent_extra("cmd", "execute-transpile")
     checker = _TranspileConfigChecker(ctx.transpile_config, ctx.prompts, transpiler_repository)
@@ -235,6 +234,8 @@ class _TranspileConfigChecker:
         current_value = getattr(self._config, field_name)
         if current_value is None:
             prompted_value = self._prompts.question(prompt_question).strip()
+            if not prompted_value:
+                raise_validation_exception(f"A value is required for {field_name}.")
             logger.debug(f"Setting {field_name} to: {prompted_value!r}")
             validator(prompted_value, f"Invalid {field_name}, path does not exist: {prompted_value}")
             self._config = dataclasses.replace(self._config, **{field_name: prompted_value})
@@ -461,7 +462,6 @@ class _TranspileConfigChecker:
             engine = LSPEngine.from_config_path(path)
         else:
             engine = None
-        del transpiler_config_path
 
         # Step 2: Check the source dialect, assuming it has been specified, and infer the transpiler config path if necessary.
         source_dialect = self._source_dialect_override
@@ -563,11 +563,11 @@ async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: T
             severity.name: len(list(errors)) for severity, errors in itertools.groupby(errs, key=lambda x: x.severity)
         }
         reports = []
-        reported_severities = [ErrorSeverity.ERROR, ErrorSeverity.WARNING]
-        for severity in reported_severities:
+        for severity in (ErrorSeverity.ERROR, ErrorSeverity.WARNING):
             if severity.name in errors_by_severity:
-                word = str.lower(severity.name) + "s" if errors_by_severity[severity.name] > 1 else ""
-                reports.append(f"{errors_by_severity[severity.name]} {word}")
+                count = errors_by_severity[severity.name]
+                label = severity.name.lower() + ("s" if count > 1 else "")
+                reports.append(f"{count} {label}")
 
         msg = ", ".join(reports) + " found"
 
@@ -681,7 +681,10 @@ def configure_database_profiler(w: WorkspaceClient) -> None:
     ctx = ApplicationContext(w)
     ctx.add_user_agent_extra("cmd", "configure-profiler")
     prompts = ctx.prompts
-    source_tech = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM).lower()
+    source_tech_raw = prompts.choice("Select the source technology", PROFILER_SOURCE_SYSTEM)
+    if not source_tech_raw:
+        raise_validation_exception("Source technology must be selected.")
+    source_tech = source_tech_raw.lower()
     ctx.add_user_agent_extra("profiler_source_tech", make_alphanum_or_semver(source_tech))
     user = ctx.current_user
     logger.debug(f"User: {user}")

@@ -278,8 +278,9 @@ class Reconciliation:
 
             # For each Aggregated Query, reconcile the data based on the rule
             for rule in src_query_with_rules.rules:
-                if data_source_exception:
-                    rule_reconcile_output = DataReconcileOutput(exception=str(data_source_exception))
+                if data_source_exception or joined_df is None or src_data is None or tgt_data is None:
+                    exception_msg = str(data_source_exception) if data_source_exception else "Data unavailable"
+                    rule_reconcile_output = DataReconcileOutput(exception=exception_msg)
                 else:
                     rule_reconcile_output = reconcile_agg_data_per_rule(
                         joined_df, src_data.columns, tgt_data.columns, rule
@@ -494,7 +495,7 @@ class Reconciliation:
             source_count = int(source_count_row[0]) if source_count_row is not None else 0
             target_count = int(target_count_row[0]) if target_count_row is not None else 0
 
-            return ReconcileRecordCount(source=int(source_count), target=int(target_count))
+            return ReconcileRecordCount(source=source_count, target=target_count)
         return ReconcileRecordCount()
 
     @staticmethod

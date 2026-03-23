@@ -76,11 +76,11 @@ class WorkspaceInstallation:
         """
         ws_version = self._get_ws_version()
         local_version_path = self._get_local_version_file_path()
-        local_version = local_version_path.exists()
-        if not ws_version and local_version:
+        has_local_version = local_version_path.exists()
+        if not ws_version and has_local_version:
             self._installation.save(self._get_local_version_file(local_version_path))
 
-        if ws_version or local_version:
+        if ws_version or has_local_version:
             try:
                 self._upgrades.apply(self._ws)
                 logger.debug("Upgrades applied successfully.")
@@ -116,7 +116,7 @@ class WorkspaceInstallation:
             return
 
         if config.transpile:
-            logging.info(
+            logger.info(
                 f"Won't remove transpile validation schema `{config.transpile.schema_name}` "
                 f"from catalog `{config.transpile.catalog_name}`. Please remove it manually."
             )

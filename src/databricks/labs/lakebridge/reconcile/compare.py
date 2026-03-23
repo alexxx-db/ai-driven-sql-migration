@@ -33,6 +33,8 @@ def _raise_column_mismatch_exception(msg: str, source_missing: list[str], target
 
 
 def _generate_join_condition(source_alias, target_alias, key_columns):
+    if not key_columns:
+        raise ValueError("key_columns must not be empty for join condition generation")
     conditions = [
         col(f"{source_alias}.{DialectUtils.ansi_normalize_identifier(key_column)}").eqNullSafe(
             col(f"{target_alias}.{DialectUtils.ansi_normalize_identifier(key_column)}")

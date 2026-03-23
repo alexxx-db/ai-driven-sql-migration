@@ -76,7 +76,6 @@ class _BaseConnector(DatabaseConnector):
 
 def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
     connectors = {
-        "snowflake": SnowflakeConnector,
         "mssql": MSSQLConnector,
         "tsql": MSSQLConnector,
         "synapse": MSSQLConnector,  # Synapse uses MSSQL protocol
@@ -85,7 +84,8 @@ def _create_connector(db_type: str, config: JsonObject) -> DatabaseConnector:
     connector_class = connectors.get(db_type.lower())
 
     if connector_class is None:
-        raise ValueError(f"Unsupported database type: {db_type}")
+        supported = ", ".join(sorted(connectors.keys()))
+        raise ValueError(f"Unsupported database type: '{db_type}'. Supported: {supported}")
 
     return connector_class(config)
 
@@ -157,6 +157,6 @@ class DatabaseManager:
     def check_connection(self) -> bool:
         query = "SELECT 101 AS test_column"
         result = self.fetch(query)
-        if result is None:
+        if result is None or not result.rows:
             return False
         return result.rows[0][0] == 101

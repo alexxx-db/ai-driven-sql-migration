@@ -236,7 +236,8 @@ def _to_boolean(self: SqlglotDatabricks.Generator, expression: local_expression.
     this = self.sql(expression, "this")
     logger.debug(f"Converting {this} to Boolean")
     raise_error = self.sql(expression, "raise_error")
-    raise_error_str = "RAISE_ERROR('Invalid parameter type for TO_BOOLEAN')" if bool(int(raise_error)) else "NULL"
+    should_raise = raise_error.strip() in ("1", "true", "True", "TRUE")
+    raise_error_str = "RAISE_ERROR('Invalid parameter type for TO_BOOLEAN')" if should_raise else "NULL"
     transformed = f"""
     CASE
        WHEN {this} IS NULL THEN NULL
@@ -297,10 +298,12 @@ def _array_slice(self: SqlglotDatabricks.Generator, expression: local_expression
     parsed_from_expr = 1 if from_expr == "0" else from_expr
 
     to_expr = self.sql(expression, "to")
-    # Convert string expression to number and check if it is negative number
-    if int(to_expr) < 0:
-        err_message = "In Databricks: function `slice` length must be greater than or equal to 0"
-        raise UnsupportedError(err_message)
+    # Validate length is non-negative if it's a numeric literal
+    try:
+        if int(to_expr) < 0:
+            raise UnsupportedError("In Databricks: function `slice` length must be greater than or equal to 0")
+    except ValueError:
+        pass  # Non-literal expression (e.g. column reference) — validated at runtime by Databricks
 
     func = "SLICE"
     func_expr = self.func(func, expression.this, exp.Literal.number(parsed_from_expr), expression.args["to"])
@@ -333,18 +336,9 @@ def _to_number(self, expression: local_expression.ToNumber):
             return f"CAST({func_expr} AS DECIMAL({precision}, {scale}))"
         return func_expr
     if not precision:
-        precision = 38
+        precision = PRECISION_CONST
     if not scale:
-        scale = 0
-    if not expression.expression and not precision:
-        exception_msg = f"""Error Parsing expression {expression}:
-                         * `format`: is required in Databricks [mandatory]
-                         * `precision` and `scale`: are considered as (38, 0) if not specified.
-                      """
-        raise UnsupportedError(exception_msg)
-
-    precision = PRECISION_CONST if not precision else precision
-    scale = SCALE_CONST if not scale else scale
+        scale = SCALE_CONST
     return f"CAST({func_expr} AS DECIMAL({precision}, {scale}))"
 
 
