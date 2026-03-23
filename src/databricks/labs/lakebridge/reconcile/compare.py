@@ -273,7 +273,8 @@ def _agg_conditions(
     :param op_type: and, or
     :return:  Reduced column expressions
     """
-    assert cols, "Columns must be specified for aggregation conditions"
+    if not cols:
+        raise ValueError("Columns must be specified for aggregation conditions")
 
     if condition_type == "group_filter":
         conditions_list = [

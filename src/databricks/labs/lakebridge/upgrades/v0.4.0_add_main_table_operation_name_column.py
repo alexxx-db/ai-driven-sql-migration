@@ -45,7 +45,8 @@ def _upgrade_reconcile_metadata_main_table(
     :param app_context:
     """
     reconcile_config = app_context.recon_config
-    assert reconcile_config, "Reconcile config must be present to upgrade the reconcile metadata main table"
+    if not reconcile_config:
+        raise ValueError("Reconcile config must be present to upgrade the reconcile metadata main table")
     table_name = "main"
     table_identifier = (
         f"{reconcile_config.metadata_config.catalog}.{reconcile_config.metadata_config.schema}.{table_name}"

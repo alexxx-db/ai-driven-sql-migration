@@ -56,7 +56,8 @@ class _PathBackup:
 
     def rollback(self) -> None:
         """Rollback the operation by restoring the backup path, if it exists."""
-        assert not self._finished, "Can only rollback/commit once."
+        if self._finished:
+            raise RuntimeError("Can only rollback/commit once.")
         logger.debug(f"Removing path: {self._path}")
         rmtree(self._path)
         if self._backup_path is not None:
@@ -67,7 +68,8 @@ class _PathBackup:
 
     def commit(self) -> None:
         """Commit the operation by removing the backup path, if it exists."""
-        assert not self._finished, "Can only rollback/commit once."
+        if self._finished:
+            raise RuntimeError("Can only rollback/commit once.")
         if self._backup_path is not None:
             logger.debug(f"Removing backup path: {self._backup_path}")
             rmtree(self._backup_path)

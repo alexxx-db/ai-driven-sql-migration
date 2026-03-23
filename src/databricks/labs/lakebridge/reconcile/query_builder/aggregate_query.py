@@ -153,7 +153,8 @@ class AggregateQueryBuilder(QueryBuilder):
         select_cols_with_alias = self._agg_query_cols_with_alias(select_cols_with_transform)
         query_exp = exp.select(*select_cols_with_alias).from_(":tbl").where(self.filter)
 
-        assert group_list[0], "At least, one item must be present in the group_list."
+        if not group_list or not group_list[0]:
+            raise ValueError("At least one item must be present in the group_list.")
 
         # Apply Group by if group_by_columns are defined
         if group_list[0].group_by_columns:
@@ -220,7 +221,8 @@ class AggregateQueryBuilder(QueryBuilder):
         """
         _aggregates: list[Aggregate] = []
 
-        assert self.aggregates, "Aggregates config must be defined to build the queries."
+        if not self.aggregates:
+            raise ValueError("Aggregates config must be defined to build the queries.")
         self._validate(self.aggregates, "Aggregates config must be defined to build the queries.")
 
         if self.aggregates:

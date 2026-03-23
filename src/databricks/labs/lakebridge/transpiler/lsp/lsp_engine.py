@@ -407,8 +407,14 @@ class LakebridgeLanguageClient(ExtendableLanguageClient):
         self._async_tasks.append(task)
 
     async def pipe_stderr(self, *, limit: int = _DEFAULT_LIMIT) -> None:
-        assert (server := self._server) is not None
-        assert (stderr := server.stderr) is not None
+        server = self._server
+        if server is None:
+            logger.warning("Cannot pipe stderr: LSP server process is not available.")
+            return
+        stderr = server.stderr
+        if stderr is None:
+            logger.warning("Cannot pipe stderr: LSP server stderr stream is not available.")
+            return
 
         try:
             async for line in readlines(stream=stderr, limit=limit):

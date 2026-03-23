@@ -156,9 +156,8 @@ def transform_expression(
 ) -> exp.Expression:
     for func in funcs:
         expr = func(expr)
-    assert isinstance(expr, exp.Expression), (
-        f"Func returned an instance of type [{type(expr)}], " "should have been Expression."
-    )
+    if not isinstance(expr, exp.Expression):
+        raise TypeError(f"Transform function returned {type(expr).__name__}, expected Expression.")
     return expr
 
 
