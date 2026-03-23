@@ -169,7 +169,7 @@ class TranspileConfig:
     include_llm: bool = False
     catalog_name: str = "remorph"
     schema_name: str = "transpiler"
-    transpiler_options: JsonValue = None
+    transpiler_options: dict[str, JsonValue] | None = None
 
     @property
     def transpiler_config_path_parsed(self) -> Path | None:

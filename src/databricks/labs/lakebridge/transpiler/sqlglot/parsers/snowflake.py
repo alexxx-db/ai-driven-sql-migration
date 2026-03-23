@@ -155,24 +155,30 @@ def _parse_dayname(args: list) -> local_expression.DateFormat:
 
 
 def _parse_trytonumber(args: list) -> local_expression.TryToNumber:
+    # TRY_TO_NUMBER(expr [, format [, precision, scale]])
+    # Valid argument counts: 1, 2, or 4
+    if len(args) == 0:
+        raise ParseError("TRY_TO_NUMBER requires at least 1 argument")
     if len(args) == 1:
-        msg = f"""*Warning:: Parsing args `{args}`:
-                             * `format` is missing
-                             * assuming defaults `precision`[38] and `scale`[0]
-                          """
-        logger.warning(msg)
+        logger.warning(
+            f"TRY_TO_NUMBER: `format` is missing for args `{args}`, assuming defaults precision=38, scale=0"
+        )
     elif len(args) == 3:
-        msg = f"""Error Parsing args `{args}`:
-                             * `format` is required
-                             * `precision` and `scale` both are required [if specified]
-                          """
-        raise ParseError(msg)
+        raise ParseError(
+            f"TRY_TO_NUMBER: Invalid argument count {len(args)} for args `{args}`. "
+            "When specifying precision and scale, format is also required (expected 4 args)."
+        )
+    elif len(args) > 4:
+        raise ParseError(
+            f"TRY_TO_NUMBER: Too many arguments ({len(args)}), expected at most 4 (expr, format, precision, scale)."
+        )
 
     if len(args) == 4:
         return local_expression.TryToNumber(
             this=seq_get(args, 0), expression=seq_get(args, 1), precision=seq_get(args, 2), scale=seq_get(args, 3)
         )
 
+    # len(args) is 1 or 2
     return local_expression.TryToNumber(this=seq_get(args, 0), expression=seq_get(args, 1))
 
 
