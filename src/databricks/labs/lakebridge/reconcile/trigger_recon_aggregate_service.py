@@ -78,8 +78,14 @@ class TriggerReconAggregateService:
                 normalized_table_conf, src_schema, tgt_schema
             )
         except DataSourceRuntimeException as e:
+            logger.error(f"Data source error during aggregate reconciliation for table '{table_conf.source_name}': {e}")
             table_reconcile_agg_output_list = [
-                AggregateQueryOutput(reconcile_output=DataReconcileOutput(exception=str(e)), rule=None)
+                AggregateQueryOutput(
+                    reconcile_output=DataReconcileOutput(
+                        exception=f"DataSourceRuntimeException for table '{table_conf.source_name}': {e}"
+                    ),
+                    rule=None,
+                )
             ]
 
         recon_process_duration.end_ts = str(datetime.now())

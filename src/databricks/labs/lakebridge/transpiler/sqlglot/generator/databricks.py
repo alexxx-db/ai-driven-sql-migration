@@ -168,16 +168,37 @@ def _lateral_view(self: SqlglotDatabricks.Generator, expression: exp.Lateral) ->
     return lateral_statement
 
 
-# [TODO] Add more datatype coverage https://docs.databricks.com/sql/language-manual/sql-ref-datatypes.html
+# Databricks SQL data type reference:
+# https://docs.databricks.com/sql/language-manual/sql-ref-datatypes.html
+_DATABRICKS_DATATYPE_MAP: dict[exp.DataType.Type, str] = {
+    # String types → STRING
+    exp.DataType.Type.VARCHAR: "STRING",
+    exp.DataType.Type.NVARCHAR: "STRING",
+    exp.DataType.Type.CHAR: "STRING",
+    exp.DataType.Type.NCHAR: "STRING",
+    exp.DataType.Type.TEXT: "STRING",
+    exp.DataType.Type.LONGTEXT: "STRING",
+    exp.DataType.Type.MEDIUMTEXT: "STRING",
+    # Timestamp types → TIMESTAMP
+    exp.DataType.Type.TIMESTAMP: "TIMESTAMP",
+    exp.DataType.Type.TIMESTAMPLTZ: "TIMESTAMP",
+    exp.DataType.Type.TIMESTAMPNTZ: "TIMESTAMP_NTZ",
+    # Binary
+    exp.DataType.Type.BINARY: "BINARY",
+    exp.DataType.Type.VARBINARY: "BINARY",
+    # Numeric mappings not covered by TYPE_MAPPING
+    exp.DataType.Type.MONEY: "DECIMAL(19,4)",
+    exp.DataType.Type.SMALLMONEY: "DECIMAL(10,4)",
+    exp.DataType.Type.UNIQUEIDENTIFIER: "STRING",
+    # XML/JSON as STRING
+    exp.DataType.Type.XML: "STRING",
+}
+
+
 def _datatype_map(self, expression) -> str:
-    if expression.this in [exp.DataType.Type.VARCHAR, exp.DataType.Type.NVARCHAR, exp.DataType.Type.CHAR]:
-        return "STRING"
-    if expression.this in [exp.DataType.Type.TIMESTAMP, exp.DataType.Type.TIMESTAMPLTZ]:
-        return "TIMESTAMP"
-    if expression.this == exp.DataType.Type.BINARY:
-        return "BINARY"
-    if expression.this == exp.DataType.Type.NCHAR:
-        return "STRING"
+    mapped = _DATABRICKS_DATATYPE_MAP.get(expression.this)
+    if mapped:
+        return mapped
     return self.datatype_sql(expression)
 
 
@@ -412,7 +433,8 @@ class Databricks(SqlglotDatabricks):  #
         }
 
         COLLATE_IS_FUNC = True
-        # [TODO]: Variant needs to be transformed better, for now parsing to string was deemed as the choice.
+        # VARIANT is mapped to Databricks native VARIANT type (available since DBR 15.3).
+        # OBJECT and GEOGRAPHY don't have direct equivalents and are mapped to STRING.
         TYPE_MAPPING = {
             **SqlglotDatabricks.Generator.TYPE_MAPPING,
             exp.DataType.Type.TINYINT: "TINYINT",
@@ -423,7 +445,7 @@ class Databricks(SqlglotDatabricks):  #
             exp.DataType.Type.VARCHAR: "STRING",
             exp.DataType.Type.VARIANT: "VARIANT",
             exp.DataType.Type.FLOAT: "DOUBLE",
-            exp.DataType.Type.OBJECT: "STRING",
+            exp.DataType.Type.OBJECT: "MAP<STRING, STRING>",
             exp.DataType.Type.GEOGRAPHY: "STRING",
         }
 

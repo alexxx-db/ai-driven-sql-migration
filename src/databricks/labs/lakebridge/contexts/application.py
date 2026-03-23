@@ -247,9 +247,30 @@ class ApplicationContext(_CoreContext, _TranspileContext, _ReconcileContext, _De
     def remorph_config(self) -> LakebridgeConfiguration:
         return LakebridgeConfiguration(transpile=self.transpile_config, reconcile=self.recon_config)
 
+    # Properties that depend on the WorkspaceClient and must be invalidated when it changes.
+    _WS_DEPENDENT_PROPERTIES = (
+        "current_user",
+        "installation",
+        "install_state",
+        "sql_backend",
+        "catalog_operations",
+        "resource_configurator",
+        "table_deployment",
+        "job_deployment",
+        "dashboard_deployment",
+        "dashboard_manager",
+        "recon_deployment",
+        "switch_deployment",
+        "workspace_installation",
+    )
+
     def add_user_agent_extra(self, key: str, value: str) -> None:
         new_config = self._ws.config.copy().with_user_agent_extra(key, value)
         logger.debug(f"Added User-Agent extra {key}={value}")
 
         # Recreate the WorkspaceClient from the same type to preserve type information
         self._ws = type(self._ws)(config=new_config)
+
+        # Invalidate cached properties that depend on the WorkspaceClient
+        for prop_name in self._WS_DEPENDENT_PROPERTIES:
+            self.__dict__.pop(prop_name, None)

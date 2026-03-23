@@ -203,6 +203,17 @@ class Table:
         self.select_columns = to_lower_case(self.select_columns) if self.select_columns else None
         self.drop_columns = to_lower_case(self.drop_columns) if self.drop_columns else None
         self.join_columns = to_lower_case(self.join_columns) if self.join_columns else None
+        self._validate_column_mapping()
+
+    def _validate_column_mapping(self):
+        if not self.column_mapping:
+            return
+        source_names = [m.source_name for m in self.column_mapping]
+        target_names = [m.target_name for m in self.column_mapping]
+        if len(source_names) != len(set(source_names)):
+            raise ValueError(f"Duplicate source_name in column_mapping for table '{self.source_name}'")
+        if len(target_names) != len(set(target_names)):
+            raise ValueError(f"Duplicate target_name in column_mapping for table '{self.target_name}'")
 
     @property
     def to_src_col_map(self):
