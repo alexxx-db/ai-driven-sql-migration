@@ -14,7 +14,8 @@ def _upgrade_reconcile_metadata_metrics_table(
     installation: Installation, ws: WorkspaceClient, app_context: ApplicationContext
 ):
     reconcile_config = app_context.recon_config
-    assert reconcile_config, "Reconcile config must be present to upgrade the reconcile metadata metrics table"
+    if not reconcile_config:
+        raise ValueError("Reconcile config must be present to upgrade the reconcile metadata metrics table")
     table_name = "metrics"
     table_identifier = (
         f"{reconcile_config.metadata_config.catalog}.{reconcile_config.metadata_config.schema}.{table_name}"

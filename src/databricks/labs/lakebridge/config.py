@@ -135,7 +135,8 @@ class LSPConfigOptionV1:
     def prompt_for_value(self, prompts: Prompts) -> JsonValue:
         if self.method == LSPPromptMethod.FORCE:
             return self.default
-        assert self.prompt is not None
+        if self.prompt is None:
+            raise ValueError(f"Prompt text is required for method {self.method}")
         if self.method == LSPPromptMethod.CONFIRM:
             return prompts.confirm(self.prompt)
         if self.method == LSPPromptMethod.QUESTION:

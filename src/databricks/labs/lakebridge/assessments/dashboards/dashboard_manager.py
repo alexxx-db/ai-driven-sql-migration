@@ -108,7 +108,8 @@ class DashboardManager:
         except DatabricksError as e:
             logger.error(f"Could not create profiler summary dashboard: {e}")
 
-        assert dashboard.dashboard_id is not None
+        if dashboard.dashboard_id is None:
+            raise ValueError("Failed to create profiler dashboard: dashboard_id is None")
         logger.info(f"Created dashboard '{dashboard.dashboard_id}' in workspace location {ws_parent_path}.")
         self._install_state.dashboards[dash_reference] = dashboard.dashboard_id
         return dashboard

@@ -112,7 +112,8 @@ class DashboardDeployment:
             warehouse_id=self._ws.config.warehouse_id,
             publish=True,
         )
-        assert dashboard.dashboard_id is not None
+        if dashboard.dashboard_id is None:
+            raise ValueError(f"Failed to create dashboard '{reference}': dashboard_id is None")
         self._install_state.dashboards[reference] = dashboard.dashboard_id
         return dashboard
 

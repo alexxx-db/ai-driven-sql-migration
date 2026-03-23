@@ -222,8 +222,24 @@ class WorkspaceInstaller:
     def _transpiler_config_path(self, transpiler: str) -> Path:
         return self._transpiler_repository.transpiler_config_path(transpiler)
 
-    # Sentinel value for special "set it later" option in prompts.
-    _install_later = "Set it later"
+    class _InstallLater:
+        """Sentinel type for 'set it later' prompt options. Cannot collide with real user input."""
+
+        _DISPLAY = "Set it later"
+
+        def __eq__(self, other):
+            return isinstance(other, str) and other == self._DISPLAY
+
+        def __str__(self):
+            return self._DISPLAY
+
+        def __repr__(self):
+            return "InstallLater"
+
+        def __hash__(self):
+            return hash(self._DISPLAY)
+
+    _install_later = _InstallLater()
 
     def _prompt_for_new_transpile_installation(self) -> TranspileConfig:
         # TODO tidy this up, logger might not display the below in console...
@@ -240,7 +256,7 @@ class WorkspaceInstaller:
                 transpiler_name, transpiler_config_path = found_config
                 transpiler_options = self._prompt_for_transpiler_options(transpiler_name, source_dialect)
         input_source: str | None = self._prompts.question(
-            "Enter input SQL path (directory/file)", default=self._install_later
+            "Enter input SQL path (directory/file)", default=str(self._install_later)
         )
         if input_source == self._install_later:
             input_source = None

@@ -561,7 +561,8 @@ class ReconCapture:
 
             # If there is any exception while running the Query,
             # each rule is stored, with the Exception message in the metrics table
-            assert agg_output.rule, "Aggregate Rule must be present for storing the metrics"
+            if not agg_output.rule:
+                raise ValueError("Aggregate Rule must be present for storing the metrics")
             rule_id = hash(f"{recon_table_id}_{agg_output.rule.column_from_rule}")
 
             agg_metrics_df = self.spark.sql(

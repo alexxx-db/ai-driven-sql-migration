@@ -29,7 +29,8 @@ def main(*argv: str) -> None:
     initialize_logging()
 
     logger.debug(f"Arguments received: {argv}")
-    assert len(sys.argv) == 4, f"Invalid number of arguments: {len(sys.argv)}"
+    if len(sys.argv) != 4:
+        raise ValueError(f"Expected 4 arguments, got {len(sys.argv)}: {sys.argv}")
     catalog_name = sys.argv[0]
     schema_name = sys.argv[1]
     extract_location = sys.argv[2]

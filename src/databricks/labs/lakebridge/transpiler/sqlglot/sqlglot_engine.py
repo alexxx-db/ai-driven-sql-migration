@@ -129,16 +129,20 @@ class SqlglotEngine(TranspileEngine):
         parsed_expression, _ = self.parse(source_dialect, source_code, file_path)
         if parsed_expression is not None:
             for expr in parsed_expression:
+                if expr is None:
+                    continue
+                # Determine the target table from CREATE/INSERT/MERGE, falling back to the file path
                 child: str = str(file_path)
-                if expr is not None:
-                    # TODO: fix possible issue where the file reference is lost (if we have a 'create')
-                    for change in expr.find_all(exp.Create, exp.Insert, exp.Merge, bfs=False):
-                        child = self._find_root_table(change)
+                for change in expr.find_all(exp.Create, exp.Insert, exp.Merge, bfs=False):
+                    found = self._find_root_table(change)
+                    if found:
+                        child = found
+                        break
 
-                    for query in expr.find_all(exp.Select, exp.Join, exp.With, bfs=False):
-                        table = self._find_root_table(query)
-                        if table:
-                            yield table, child
+                for query in expr.find_all(exp.Select, exp.Join, exp.With, bfs=False):
+                    table = self._find_root_table(query)
+                    if table:
+                        yield table, child
 
     def safe_parse(
         self, read_dialect: Dialect, source_code: str, file_path: Path

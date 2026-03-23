@@ -142,8 +142,10 @@ class CatalogOperations:
         """
         Check if a user has a set of privileges for a securable object.
         """
-        assert user, "User must be provided"
-        assert full_name, "Full name must be provided"
+        if not user:
+            raise ValueError("User must be provided for privilege check")
+        if not full_name:
+            raise ValueError("Full name must be provided for privilege check")
         user_privileges = self._get_user_privileges(user, securable_type, full_name)
         result = privileges.issubset(user_privileges)
         if not result:
