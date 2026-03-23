@@ -146,9 +146,9 @@ class SwitchDeployment:
         # Create new job
         logger.debug(f"Creating new Switch job with settings: {job_settings}")
         new_job = self._ws.jobs.create(**job_settings)
-        new_job_id = str(new_job.job_id)
-        assert new_job_id is not None
-        return new_job_id
+        if new_job.job_id is None:
+            raise ValueError("Failed to create Switch job: job_id is None")
+        return str(new_job.job_id)
 
     def _get_switch_job_settings(self, use_serverless: bool = True) -> dict[str, Any]:
         """Build job settings for Switch transpiler."""

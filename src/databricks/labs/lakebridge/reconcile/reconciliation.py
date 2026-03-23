@@ -31,6 +31,7 @@ from databricks.labs.lakebridge.reconcile.query_builder.threshold_query import (
 from databricks.labs.lakebridge.reconcile.recon_capture import AbstractReconIntermediatePersist
 
 from databricks.labs.lakebridge.reconcile.recon_config import (
+    DEFAULT_SAMPLE_ROWS,
     Schema,
     Table,
     SamplingOptions,
@@ -46,7 +47,6 @@ from databricks.labs.lakebridge.reconcile.schema_compare import SchemaCompare
 from databricks.labs.lakebridge.transpiler.sqlglot.dialect_utils import get_dialect
 
 logger = logging.getLogger(__name__)
-_SAMPLE_ROWS = 50
 
 
 class Reconciliation:
@@ -459,11 +459,11 @@ class Reconciliation:
             ["`" + DialectUtils.unnormalize_identifier(name) + "_match` = 'Failed'" for name in threshold_columns]
         )
         mismatched_df = threshold_result.filter(failed_where_cond)
-        # TODO write `mismatched_df` to delta
         mismatched_count = mismatched_df.count()
         threshold_df = None
+        sample_rows = table_conf.sampling_options.sample_rows if table_conf.sampling_options else DEFAULT_SAMPLE_ROWS
         if mismatched_count > 0:
-            threshold_df = mismatched_df.limit(_SAMPLE_ROWS)
+            threshold_df = mismatched_df.limit(sample_rows)
 
         return ThresholdOutput(threshold_df=threshold_df, threshold_mismatch_count=mismatched_count)
 

@@ -120,7 +120,8 @@ async def _process_one_file(context: TranspilingContext) -> tuple[int, list[Tran
     context = dataclasses.replace(context, transpiled_code=transpile_result.transpiled_code)
 
     output_path = context.output_path
-    assert output_path is not None, "Output path must be set in the context"
+    if output_path is None:
+        raise ValueError("Output path must be set in the context")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if _is_mime_result(transpile_result):
@@ -136,8 +137,6 @@ def _is_mime_result(result: TranspileResult):
 
 
 def _process_mime_result(context: TranspilingContext, error_list: list[TranspileError]) -> None:
-    # TODO error handling
-    # Added policy to process quoted-printable encoded
     parser = EmailParser(policy=policy.default)
     transpiled_code: str = cast(str, context.transpiled_code)
     message: Message = parser.parsestr(transpiled_code)
@@ -146,8 +145,20 @@ def _process_mime_result(context: TranspilingContext, error_list: list[Transpile
 
 
 def _process_combined_part(context: TranspilingContext, part: Message, error_list: list[TranspileError]) -> None:
-    if part.get_content_type() != "text/plain":
-        return  # TODO Need to handle other content types, e.g., text/binary, application/json, etc.
+    content_type = part.get_content_type()
+    if content_type == "multipart/mixed":
+        return  # Container type, children are walked separately
+    if content_type != "text/plain":
+        error = TranspileError(
+            code="UNSUPPORTED_MIME_TYPE",
+            kind=ErrorKind.INTERNAL,
+            severity=ErrorSeverity.WARNING,
+            path=context.input_path,
+            message=f"Unsupported MIME content type: {content_type}. Only text/plain is supported.",
+        )
+        error_list.append(error)
+        logger.warning(f"Skipping MIME part with unsupported content type: {content_type}")
+        return
     filename = part.get_filename()
     payload = part.get_payload(decode=True)
     charset = part.get_content_charset() or "utf-8"
@@ -158,7 +169,16 @@ def _process_combined_part(context: TranspilingContext, part: Message, error_lis
     logger.debug(f"Processing file: {filename}")
 
     if not filename:
-        return  # TODO Raise exception!!!!
+        error = TranspileError(
+            code="MISSING_MIME_FILENAME",
+            kind=ErrorKind.INTERNAL,
+            severity=ErrorSeverity.ERROR,
+            path=context.input_path,
+            message="MIME part is missing a filename, cannot write output.",
+        )
+        error_list.append(error)
+        logger.error("MIME part is missing a filename, skipping.")
+        return
     filename = Path(filename).name
     folder = context.output_folder
     segments = filename.split("/")

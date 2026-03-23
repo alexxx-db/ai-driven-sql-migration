@@ -77,6 +77,7 @@ class _LSPRemorphConfigV1:
     dialects: Sequence[str]
     env_vars: Mapping[str, str]
     command_line: Sequence[str]
+    supported_file_types: Sequence[str]
 
     @classmethod
     def parse(cls, data: Mapping[str, JsonValue]) -> _LSPRemorphConfigV1:
@@ -85,7 +86,8 @@ class _LSPRemorphConfigV1:
         dialects = cls._extract_dialects(data)
         env_vars = cls._extract_env_vars(data)
         command_line = cls._extract_command_line(data)
-        return _LSPRemorphConfigV1(name, dialects, env_vars, command_line)
+        supported_file_types = cls._extract_supported_file_types(data)
+        return _LSPRemorphConfigV1(name, dialects, env_vars, command_line, supported_file_types)
 
     @classmethod
     def _check_version(cls, data: Mapping[str, JsonValue]) -> None:
@@ -129,6 +131,18 @@ class _LSPRemorphConfigV1:
             raise ValueError(msg)
         return cast(list[str], command_line)
 
+    @classmethod
+    def _extract_supported_file_types(cls, data: Mapping[str, JsonValue]) -> Sequence[str]:
+        try:
+            file_types = data["supported_file_types"]
+            if not isinstance(file_types, list) or not _is_all_strings(file_types):
+                msg = f"Invalid 'supported_file_types', expected a list of strings but got: {file_types}"
+                raise ValueError(msg)
+            return cast(list[str], file_types)
+        except KeyError:
+            # Default to SQL-only for backward compatibility
+            return ["sql"]
+
 
 @dataclass
 class LSPConfig:
@@ -140,6 +154,10 @@ class LSPConfig:
     @property
     def name(self):
         return self.remorph.name
+
+    @property
+    def supported_file_types(self) -> Sequence[str]:
+        return self.remorph.supported_file_types
 
     def options_for_dialect(self, source_dialect: str) -> Sequence[LSPConfigOptionV1]:
         return [*self.options.get("all", []), *self.options.get(source_dialect, [])]
@@ -731,23 +749,13 @@ class LSPEngine(TranspileEngine):
         result = await self._client.transpile_document_async(params)
         return result
 
-    # TODO infer the below from config file
     def is_supported_file(self, file: Path) -> bool:
-        if self._is_bladebridge() or self._is_test_transpiler():
+        supported_file_types = self._config.supported_file_types
+        if "all" in supported_file_types:
             return True
-        if self._is_morpheus():
-            return is_sql_file(file) or is_dbt_project_file(file)
-        # then only support sql
-        return is_sql_file(file)
-
-    # TODO remove this
-    def _is_test_transpiler(self):
-        return self._config.remorph.name == "test-transpiler"
-
-    # TODO remove this
-    def _is_bladebridge(self):
-        return self._config.remorph.name == "Bladebridge"
-
-    # TODO remove this
-    def _is_morpheus(self):
-        return self._config.remorph.name == "Morpheus"
+        is_supported = False
+        if "sql" in supported_file_types:
+            is_supported = is_supported or is_sql_file(file)
+        if "dbt" in supported_file_types:
+            is_supported = is_supported or is_dbt_project_file(file)
+        return is_supported

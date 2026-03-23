@@ -20,13 +20,19 @@ class LocalSecretProvider(SecretProvider):
 
 
 class EnvSecretProvider(SecretProvider):
-    def __init__(self, env_getter: EnvGetter):
+    def __init__(self, env_getter: EnvGetter, strict: bool = True):
         self._env_getter = env_getter
+        self._strict = strict
 
     def get_secret(self, key: str) -> str:
         try:
             return self._env_getter.get(str(key))
         except KeyError:
+            if self._strict:
+                raise KeyError(
+                    f"Environment variable '{key}' not found. "
+                    "Check that the variable is set, or use 'local' secret_vault_type."
+                )
             logger.debug(f"Environment variable {key} not found. Falling back to actual value")
             return key
 
@@ -77,7 +83,8 @@ class CredentialManager:
 
     def _get_secret_value(self, key: str) -> str:
         """Apply the configured secret provider to resolve a string value."""
-        assert self._provider is not None
+        if self._provider is None:
+            raise ValueError("No secret provider configured")
         return self._provider.get_secret(key)
 
 

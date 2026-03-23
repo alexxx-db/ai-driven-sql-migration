@@ -60,12 +60,16 @@ class SamplingSpecifications:
             raise ValueError("SamplingSpecifications: Fraction value must be greater than  0 and less than 1")
 
 
+DEFAULT_SAMPLE_ROWS = 50
+
+
 @dataclass
 class SamplingOptions:
     method: SamplingOptionMethod
     specifications: SamplingSpecifications
     stratified_columns: list[str] | None = None
     stratified_buckets: int | None = None
+    sample_rows: int = DEFAULT_SAMPLE_ROWS
 
     def __post_init__(self):
         if not isinstance(self.method, SamplingOptionMethod):
@@ -293,9 +297,8 @@ class Aggregate:
         self.agg_columns = to_lower_case(self.agg_columns)
         self.type = self.type.lower()
         self.group_by_columns = to_lower_case(self.group_by_columns) if self.group_by_columns else None
-        assert (
-            self.type in _SUPPORTED_AGG_TYPES
-        ), f"Invalid aggregate type: {self.type}, only {_SUPPORTED_AGG_TYPES} are supported."
+        if self.type not in _SUPPORTED_AGG_TYPES:
+            raise ValueError(f"Invalid aggregate type: {self.type}, only {_SUPPORTED_AGG_TYPES} are supported.")
 
     def get_agg_type(self):
         return self.type

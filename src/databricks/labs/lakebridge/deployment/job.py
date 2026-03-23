@@ -43,7 +43,9 @@ class JobDeployment:
         logger.info(f"Job URL: {self._ws.config.host}#job/{job_id}")
         self._install_state.save()
 
-    def _update_or_create_recon_job(self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str) -> str:
+    def _update_or_create_recon_job(
+        self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str, _retry: bool = True
+    ) -> str:
         description = "Run the reconciliation process"
         task_key = "run_reconciliation"
 
@@ -57,11 +59,14 @@ class JobDeployment:
             except InvalidParameterValue:
                 del self._install_state.jobs[name]
                 logger.warning(f"Job `{name}` does not exist anymore for some reason")
-                return self._update_or_create_recon_job(name, recon_config, lakebridge_wheel_path)
+                if not _retry:
+                    raise ValueError(f"Failed to create or update job `{name}` after retry")
+                return self._update_or_create_recon_job(name, recon_config, lakebridge_wheel_path, _retry=False)
 
         logger.info(f"Creating new job configuration for job `{name}`")
         new_job = self._ws.jobs.create(**job_settings)
-        assert new_job.job_id is not None
+        if new_job.job_id is None:
+            raise ValueError(f"Failed to create job `{name}`: job_id is None")
         self._install_state.jobs[name] = str(new_job.job_id)
         return str(new_job.job_id)
 
@@ -190,6 +195,7 @@ class JobDeployment:
         volume_location: str,
         source_tech: str,
         lakebridge_wheel_path: str,
+        _retry: bool = True,
     ) -> str:
         description = "Ingest Lakebridge profiler results"
         task_key = "ingest_profiler_extract"
@@ -206,13 +212,16 @@ class JobDeployment:
             except InvalidParameterValue:
                 del self._install_state.jobs[name]
                 logger.warning(f"Job `{name}` does not exist anymore for some reason")
+                if not _retry:
+                    raise ValueError(f"Failed to create or update job `{name}` after retry")
                 return self._update_or_create_profiler_ingestion_job(
-                    name, catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path
+                    name, catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path, _retry=False
                 )
 
         logger.info(f"Creating new job configuration for job `{name}`")
         new_job = self._ws.jobs.create(**job_settings)
-        assert new_job.job_id is not None
+        if new_job.job_id is None:
+            raise ValueError(f"Failed to create job `{name}`: job_id is None")
         self._install_state.jobs[name] = str(new_job.job_id)
         return str(new_job.job_id)
 

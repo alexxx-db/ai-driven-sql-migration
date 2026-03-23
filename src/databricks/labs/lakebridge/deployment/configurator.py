@@ -41,7 +41,8 @@ class ResourceConfigurator:
             return catalog_name
         if self._prompts.confirm(f"Catalog `{catalog_name}` doesn't exist. Create it?"):
             result = self._catalog_ops.create_catalog(catalog_name)
-            assert result.name is not None
+            if result.name is None:
+                raise ValueError(f"Failed to create catalog `{catalog_name}`: name is None")
             return result.name
         raise SystemExit("Cannot continue installation, without a valid catalog, Aborting the installation.")
 
@@ -57,7 +58,8 @@ class ResourceConfigurator:
             return schema_name
         if self._prompts.confirm(f"Schema `{schema_name}` doesn't exist in catalog `{catalog}`. Create it?"):
             result = self._catalog_ops.create_schema(schema_name, catalog)
-            assert result.name is not None
+            if result.name is None:
+                raise ValueError(f"Failed to create schema `{schema_name}` in catalog `{catalog}`: name is None")
             return result.name
         raise SystemExit("Cannot continue installation, without a valid schema. Aborting the installation.")
 
@@ -76,7 +78,8 @@ class ResourceConfigurator:
             f"Volume `{volume_name}` doesn't exist in catalog `{catalog}` and schema `{schema}`. Create it?"
         ):
             result = self._catalog_ops.create_volume(catalog, schema, volume_name)
-            assert result.name is not None
+            if result.name is None:
+                raise ValueError(f"Failed to create volume `{volume_name}`: name is None")
             return result.name
         raise SystemExit("Cannot continue installation, without a valid volume. Aborting the installation.")
 
@@ -140,7 +143,8 @@ class ResourceConfigurator:
         self, catalog_name: str, user_name: str, privilege_sets: tuple[set[Privilege], ...]
     ):
         catalog = self._catalog_ops.get_catalog(catalog_name)
-        assert catalog, f"Catalog not found {catalog_name}"
+        if not catalog:
+            raise ValueError(f"Catalog not found: {catalog_name}")
         if self._catalog_ops.has_catalog_access(catalog, user_name, privilege_sets):
             return True
         missing_permissions = self._get_missing_permissions(
@@ -155,7 +159,8 @@ class ResourceConfigurator:
         self, catalog_name: str, schema_name: str, user_name: str, privilege_sets: tuple[set[Privilege], ...]
     ):
         schema = self._catalog_ops.get_schema(catalog_name, schema_name)
-        assert schema, f"Schema not found {catalog_name}.{schema_name}"
+        if not schema:
+            raise ValueError(f"Schema not found: {catalog_name}.{schema_name}")
         if self._catalog_ops.has_schema_access(schema, user_name, privilege_sets):
             return True
         missing_permissions = self._get_missing_permissions(
@@ -175,7 +180,8 @@ class ResourceConfigurator:
         privilege_sets: tuple[set[Privilege], ...],
     ):
         volume = self._catalog_ops.get_volume(catalog_name, schema_name, volume_name)
-        assert volume, f"Volume not found {catalog_name}.{schema_name}.{volume_name}"
+        if not volume:
+            raise ValueError(f"Volume not found: {catalog_name}.{schema_name}.{volume_name}")
         if self._catalog_ops.has_volume_access(volume, user_name, privilege_sets):
             return True
         missing_permissions = self._get_missing_permissions(
@@ -193,7 +199,8 @@ class ResourceConfigurator:
         resource_name: str | None,
         privilege_sets: tuple[set[Privilege], ...],
     ):
-        assert resource_name, f"Catalog Resource name must be provided {resource_name}"
+        if not resource_name:
+            raise ValueError(f"Catalog resource name must be provided, got: {resource_name}")
         missing_permissions_list = []
         for privilege_set in privilege_sets:
             permissions = self._catalog_ops.has_privileges(user_name, securable_type, resource_name, privilege_set)
@@ -219,7 +226,8 @@ class ResourceConfigurator:
         )
 
         user_name = self._user.user_name
-        assert user_name is not None
+        if user_name is None:
+            raise ValueError("Current user does not have a user_name")
 
         catalog_access = self.has_necessary_catalog_access(catalog_name, user_name, catalog_required_privileges)
         schema_access = self.has_necessary_schema_access(

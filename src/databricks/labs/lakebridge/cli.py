@@ -155,7 +155,8 @@ def _add_user_agent_extras_transpile(
     engine: TranspileEngine,
     transpiler_repository: TranspilerRepository,
 ) -> None:
-    assert config.source_dialect is not None, "Source dialect has been validated by this point."
+    if config.source_dialect is None:
+        raise ValueError("Source dialect has not been set")
     ctx.add_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
 
     plugin_name = engine.transpiler_name
@@ -163,7 +164,8 @@ def _add_user_agent_extras_transpile(
     ctx.add_user_agent_extra("transpiler_plugin_name", plugin_name)
 
     config_path = config.transpiler_config_path_parsed
-    assert config_path is not None, "Transpiler config path has been validated by this point."
+    if config_path is None:
+        raise ValueError("Transpiler config path has not been set")
     transpiler_version = transpiler_repository.get_installed_version_given_config_path(config_path)
     if transpiler_version:
         ctx.add_user_agent_extra("transpiler_plugin_version", transpiler_version)
@@ -215,8 +217,6 @@ class _TranspileConfigChecker:
     #      - The source dialect, needs to be consistent with the engine that transpiler config path, refers to.
     #      - The source dialect can be used to infer the transpiler config path.
     #
-    # TODO: Refactor this class to eliminate a lof of the boilerplate and handle this more elegantly.
-
     _config: TranspileConfig
     """The workspace configuration for transpiling, updated from command-line arguments."""
     _prompts: Prompts
@@ -240,6 +240,36 @@ class _TranspileConfigChecker:
         self._transpiler_repository = transpiler_repository
         self._source_dialect_override = None
 
+    def _use_path_field(
+        self,
+        value: str | None,
+        field_name: str,
+        flag_name: str,
+        validator: Callable[[str, str], None],
+    ) -> None:
+        """Helper to set a config path field from a CLI argument with validation."""
+        if value is not None:
+            logger.debug(f"Setting {field_name} to: {value!r}")
+            validator(value, f"Invalid path for '--{flag_name}', does not exist: {value}")
+            self._config = dataclasses.replace(self._config, **{field_name: value})
+
+    def _check_path_field(
+        self,
+        field_name: str,
+        prompt_question: str,
+        validator: Callable[[str, str], None],
+        config_error_template: str,
+    ) -> None:
+        """Helper to check/prompt for a config path field."""
+        current_value = getattr(self._config, field_name)
+        if current_value is None:
+            prompted_value = self._prompts.question(prompt_question).strip()
+            logger.debug(f"Setting {field_name} to: {prompted_value!r}")
+            validator(prompted_value, f"Invalid {field_name}, path does not exist: {prompted_value}")
+            self._config = dataclasses.replace(self._config, **{field_name: prompted_value})
+        else:
+            validator(current_value, config_error_template.format(current_value))
+
     @staticmethod
     def _validate_transpiler_config_path(transpiler_config_path: str, msg: str) -> None:
         """Validate the transpiler config path: it must be a valid path that exists."""
@@ -248,13 +278,10 @@ class _TranspileConfigChecker:
             raise_validation_exception(msg)
 
     def use_transpiler_config_path(self, transpiler_config_path: str | None) -> None:
-        if transpiler_config_path is not None:
-            logger.debug(f"Setting transpiler_config_path to: {transpiler_config_path!r}")
-            self._validate_transpiler_config_path(
-                transpiler_config_path,
-                f"Invalid path for '--transpiler-config-path', does not exist: {transpiler_config_path}",
-            )
-            self._config = dataclasses.replace(self._config, transpiler_config_path=transpiler_config_path)
+        self._use_path_field(
+            transpiler_config_path, "transpiler_config_path", "transpiler-config-path",
+            self._validate_transpiler_config_path,
+        )
 
     def use_source_dialect(self, source_dialect: str | None) -> None:
         if source_dialect is not None:
@@ -299,29 +326,15 @@ class _TranspileConfigChecker:
             raise_validation_exception(msg)
 
     def use_input_source(self, input_source: str | None) -> None:
-        if input_source is not None:
-            logger.debug(f"Setting input_source to: {input_source!r}")
-            self._validate_input_source(
-                input_source, f"Invalid path for '--input-source', does not exist: {input_source}"
-            )
-            self._config = dataclasses.replace(self._config, input_source=input_source)
-
-    def _prompt_input_source(self) -> None:
-        prompted_input_source = self._prompts.question("Enter input SQL path (directory/file)").strip()
-        logger.debug(f"Setting input_source to: {prompted_input_source!r}")
-        self._validate_input_source(
-            prompted_input_source, f"Invalid input source, path does not exist: {prompted_input_source}"
-        )
-        self._config = dataclasses.replace(self._config, input_source=prompted_input_source)
+        self._use_path_field(input_source, "input_source", "input-source", self._validate_input_source)
 
     def _check_input_source(self) -> None:
-        config_input_source = self._config.input_source
-        if config_input_source is None:
-            self._prompt_input_source()
-        else:
-            self._validate_input_source(
-                config_input_source, f"Invalid input source path configured, does not exist: {config_input_source}"
-            )
+        self._check_path_field(
+            "input_source",
+            "Enter input SQL path (directory/file)",
+            self._validate_input_source,
+            "Invalid input source path configured, does not exist: {}",
+        )
 
     @staticmethod
     def _validate_output_folder(output_folder: str, msg: str) -> None:
@@ -330,30 +343,15 @@ class _TranspileConfigChecker:
             raise_validation_exception(msg)
 
     def use_output_folder(self, output_folder: str | None) -> None:
-        if output_folder is not None:
-            logger.debug(f"Setting output_folder to: {output_folder!r}")
-            self._validate_output_folder(
-                output_folder, f"Invalid path for '--output-folder', parent does not exist for: {output_folder}"
-            )
-            self._config = dataclasses.replace(self._config, output_folder=output_folder)
-
-    def _prompt_output_folder(self) -> None:
-        prompted_output_folder = self._prompts.question("Enter output folder path (directory)").strip()
-        logger.debug(f"Setting output_folder to: {prompted_output_folder!r}")
-        self._validate_output_folder(
-            prompted_output_folder, f"Invalid output folder path, parent does not exist for: {prompted_output_folder}"
-        )
-        self._config = dataclasses.replace(self._config, output_folder=prompted_output_folder)
+        self._use_path_field(output_folder, "output_folder", "output-folder", self._validate_output_folder)
 
     def _check_output_folder(self) -> None:
-        config_output_folder = self._config.output_folder
-        if config_output_folder is None:
-            self._prompt_output_folder()
-        else:
-            self._validate_output_folder(
-                config_output_folder,
-                f"Invalid output folder configured, parent does not exist for: {config_output_folder}",
-            )
+        self._check_path_field(
+            "output_folder",
+            "Enter output folder path (directory)",
+            self._validate_output_folder,
+            "Invalid output folder configured, parent does not exist for: {}",
+        )
 
     @staticmethod
     def _validate_error_file_path(error_file_path: str | None, msg: str) -> None:
@@ -362,12 +360,7 @@ class _TranspileConfigChecker:
             raise_validation_exception(msg)
 
     def use_error_file_path(self, error_file_path: str | None) -> None:
-        if error_file_path is not None:
-            logger.debug(f"Setting error_file_path to: {error_file_path!r}")
-            self._validate_error_file_path(
-                error_file_path, f"Invalid path for '--error-file-path', parent does not exist: {error_file_path}"
-            )
-            self._config = dataclasses.replace(self._config, error_file_path=error_file_path)
+        self._use_path_field(error_file_path, "error_file_path", "error-file-path", self._validate_error_file_path)
 
     def _check_error_file_path(self) -> None:
         config_error_file_path = self._config.error_file_path
@@ -469,7 +462,8 @@ class _TranspileConfigChecker:
                 logger.debug(f"Multiple source dialects available, choice required: {supported_dialects!r}")
                 source_dialect = self._prompts.choice("Select the source dialect:", list(supported_dialects))
         engine = self._configure_transpiler_config_path(source_dialect)
-        assert engine is not None, "No transpiler engine available for a supported dialect; configuration is invalid."
+        if engine is None:
+            raise_validation_exception("No transpiler engine available for a supported dialect; configuration is invalid.")
         self._config = dataclasses.replace(self._config, source_dialect=source_dialect)
         return engine
 
@@ -533,7 +527,8 @@ class _TranspileConfigChecker:
     def _check_transpiler_options(self, engine: TranspileEngine) -> None:
         if not isinstance(engine, LSPEngine):
             return
-        assert self._config.source_dialect is not None, "Source dialect must be set before checking transpiler options."
+        if self._config.source_dialect is None:
+            raise ValueError("Source dialect must be set before checking transpiler options.")
         options_for_dialect = engine.options_for_dialect(self._config.source_dialect)
         transpiler_options = self._config.transpiler_options
         if transpiler_options is None:
