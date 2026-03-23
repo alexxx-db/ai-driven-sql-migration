@@ -1,10 +1,8 @@
 import logging
 import re
-from datetime import datetime
 
 from pyspark.errors import PySparkException
 from pyspark.sql import DataFrame, DataFrameReader, SparkSession
-from pyspark.sql.functions import col
 from sqlglot import Dialect
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -98,7 +96,7 @@ class SnowflakeDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
                     .options(**options)
                     .load()
                 )
-            return df.select([col(column).alias(column.lower()) for column in df.columns])
+            return self._lowercase_columns(df)
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
 
@@ -121,15 +119,7 @@ class SnowflakeDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             ' ',
             SnowflakeDataSource._SCHEMA_QUERY.format(catalog=catalog, schema=schema.upper(), table=table),
         )
-        try:
-            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
-            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self.reader(schema_query).load()
-            schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
-            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            return [self._map_meta_column(field, normalize) for field in schema_metadata]
-        except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", schema_query)
+        return self._fetch_schema_metadata(schema_query, lambda q: self.reader(q).load(), normalize)
 
     def reader(self, query: str) -> DataFrameReader:
         options = self._get_snowflake_options()

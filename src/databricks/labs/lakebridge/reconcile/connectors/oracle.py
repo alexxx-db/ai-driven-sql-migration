@@ -1,11 +1,9 @@
 import re
 import logging
 from collections.abc import Mapping
-from datetime import datetime
 
 from pyspark.errors import PySparkException
 from pyspark.sql import DataFrame, DataFrameReader, SparkSession
-from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
@@ -70,9 +68,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             df = self.reader(table_query, reader_options).load()
             logger.warning(f"Fetching data using query: \n`{table_query}`")
 
-            # Convert all column names to lower case
-            df = df.select([col(c).alias(c.lower()) for c in df.columns])
-            return df
+            return self._lowercase_columns(df)
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
 
@@ -88,16 +84,7 @@ class OracleDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             ' ',
             OracleDataSource._SCHEMA_QUERY.format(table=table.lower(), owner=schema.lower()),
         )
-        try:
-            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
-            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self.reader(schema_query).load()
-            schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
-            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            logger.debug(f"schema_metadata: {schema_metadata}")
-            return [self._map_meta_column(field, normalize) for field in schema_metadata]
-        except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", schema_query)
+        return self._fetch_schema_metadata(schema_query, lambda q: self.reader(q).load(), normalize)
 
     @staticmethod
     def _get_timestamp_options() -> dict[str, str]:

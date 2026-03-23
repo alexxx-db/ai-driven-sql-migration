@@ -141,48 +141,55 @@ class WorkspaceInstaller:
             logger.fatal(f"Cannot install unsupported artifact: {artifact}")
 
     def configure(self, module: str) -> LakebridgeConfiguration:
-        match module:
-            case "transpile":
-                logger.info("Configuring lakebridge `transpile`.")
-                return LakebridgeConfiguration(
-                    self._configure_transpile(),
-                    reconcile=None,
-                    include_switch=self._include_llm,
-                    switch_use_serverless=self._switch_use_serverless,
-                )
-            case "reconcile":
-                logger.info("Configuring lakebridge `reconcile`.")
-                return LakebridgeConfiguration(None, self._configure_reconcile())
-            case "all":
-                logger.info("Configuring lakebridge `transpile` and `reconcile`.")
-                return LakebridgeConfiguration(
-                    self._configure_transpile(),
-                    self._configure_reconcile(),
-                    include_switch=self._include_llm,
-                    switch_use_serverless=self._switch_use_serverless,
-                )
-            case _:
-                raise ValueError(f"Invalid input: {module}")
+        transpile_config = None
+        reconcile_config = None
+        include_switch = False
+        switch_use_serverless = True
+
+        if module in {"transpile", "all"}:
+            logger.info("Configuring lakebridge `transpile`.")
+            transpile_config = self._configure_transpile()
+            include_switch = self._include_llm
+            switch_use_serverless = self._switch_use_serverless
+        if module in {"reconcile", "all"}:
+            logger.info("Configuring lakebridge `reconcile`.")
+            reconcile_config = self._configure_reconcile()
+        if module not in {"transpile", "reconcile", "all"}:
+            raise ValueError(f"Invalid module: {module}")
+
+        return LakebridgeConfiguration(
+            transpile_config,
+            reconcile_config,
+            include_switch=include_switch,
+            switch_use_serverless=switch_use_serverless,
+        )
 
     def _is_testing(self):
         return self._product_info.product_name() != "lakebridge"
 
-    def _configure_transpile(self) -> TranspileConfig | None:
+    def _load_existing_config(self, config_type, module_name: str) -> object | None:
+        """Try to load existing config. Returns config if user keeps it, None if override needed."""
         try:
-            config = self._installation.load(TranspileConfig)
-            logger.info("Lakebridge `transpile` is already installed on this workspace.")
+            config = self._installation.load(config_type)
+            logger.info(f"Lakebridge `{module_name}` is already installed on this workspace.")
             if not self._is_interactive:
                 logger.debug("Installation is not interactive, keeping existing configuration.")
                 return config
             if not self._prompts.confirm("Do you want to override the existing installation?"):
                 return config
         except NotFound:
-            logger.info("Couldn't find existing `transpile` installation")
+            logger.info(f"Couldn't find existing `{module_name}` installation")
         except (PermissionDenied, SerdeError, ValueError, AttributeError):
             install_dir = self._installation.install_folder()
             logger.warning(
-                f"Existing `transpile` installation at {install_dir} is corrupted. Continuing new installation..."
+                f"Existing `{module_name}` installation at {install_dir} is corrupted. Continuing new installation..."
             )
+        return None
+
+    def _configure_transpile(self) -> TranspileConfig | None:
+        existing = self._load_existing_config(TranspileConfig, "transpile")
+        if existing is not None:
+            return existing
 
         if not self._is_interactive:
             logger.warning("Installation is not interactive, skipping configuration of transpilers.")
@@ -320,20 +327,9 @@ class WorkspaceInstaller:
         )
 
     def _configure_reconcile(self) -> ReconcileConfig:
-        try:
-            self._installation.load(ReconcileConfig)
-            logger.info("Lakebridge `reconcile` is already installed on this workspace.")
-            if not self._prompts.confirm("Do you want to override the existing installation?"):
-                raise InstallationError(
-                    "Lakebridge `reconcile` is already installed and no override has been requested. Aborting."
-                )
-        except NotFound:
-            logger.info("Couldn't find existing `reconcile` installation")
-        except (PermissionDenied, SerdeError, ValueError, AttributeError):
-            install_dir = self._installation.install_folder()
-            logger.warning(
-                f"Existing `reconcile` installation at {install_dir} is corrupted. Continuing new installation..."
-            )
+        existing = self._load_existing_config(ReconcileConfig, "reconcile")
+        if existing is not None:
+            return existing
 
         config = self._configure_new_reconcile_installation()
         logger.info("Finished configuring lakebridge `reconcile`.")
