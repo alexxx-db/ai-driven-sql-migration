@@ -83,23 +83,27 @@ class SqlglotEngine(TranspileEngine):
         self, source_dialect: str, target_dialect: str, source_code: str, file_path: Path
     ) -> TranspileResult:
         read_dialect = get_dialect(source_dialect)
-        error: TranspileError | None = self._check_supported(read_dialect, source_code, file_path)
-        if error:
-            return TranspileResult(source_code, 1, [error])
+        precheck_errors: list[TranspileError] = []
+        precheck: TranspileError | None = self._check_supported(read_dialect, source_code, file_path)
+        if precheck:
+            if precheck.severity == ErrorSeverity.ERROR:
+                return TranspileResult(source_code, 1, [precheck])
+            precheck_errors.append(precheck)
         write_dialect = get_dialect(target_dialect)
         try:
             transpiled_expressions = transpile(
                 source_code, read=read_dialect, write=write_dialect, pretty=True, error_level=ErrorLevel.RAISE
             )
             transpiled_code = "\n".join(transpiled_expressions)
-            return TranspileResult(transpiled_code, len(transpiled_expressions), [])
+            return TranspileResult(transpiled_code, len(transpiled_expressions), precheck_errors)
         except (ParseError, TokenError, UnsupportedError) as e:
             logger.error(f"Exception caught for file {file_path!s}: {e}")
             transpiled_expressions, problems = self._partial_transpile(
                 read_dialect, write_dialect, source_code, file_path
             )
             transpiled_code = "\n".join(transpiled_expressions)
-            return TranspileResult(transpiled_code, 1, [problem.transpile_error for problem in problems])
+            all_errors = precheck_errors + [problem.transpile_error for problem in problems]
+            return TranspileResult(transpiled_code, 1, all_errors)
 
     def parse(
         self, source_dialect: str, source_sql: str, file_path: Path

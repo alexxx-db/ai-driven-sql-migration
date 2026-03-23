@@ -18,7 +18,8 @@ from databricks.sdk.errors import NotFound, PermissionDenied
 
 from databricks.labs.lakebridge import initialize_logging
 from databricks.labs.lakebridge.__about__ import __version__
-from databricks.labs.lakebridge.cli import lakebridge
+from databricks.labs.lakebridge.app import Lakebridge
+from databricks.labs.lakebridge.errors.exceptions import InstallationError
 from databricks.labs.lakebridge.config import (
     DatabaseConfig,
     ReconcileConfig,
@@ -86,7 +87,7 @@ class WorkspaceInstaller:
 
         if "DATABRICKS_RUNTIME_VERSION" in environ:
             msg = "WorkspaceInstaller is not supposed to be executed in Databricks Runtime"
-            raise SystemExit(msg)
+            raise InstallationError(msg)
 
     @property
     def _transpiler_installers(self) -> Set[TranspilerInstaller]:
@@ -315,9 +316,8 @@ class WorkspaceInstaller:
             self._installation.load(ReconcileConfig)
             logger.info("Lakebridge `reconcile` is already installed on this workspace.")
             if not self._prompts.confirm("Do you want to override the existing installation?"):
-                # TODO: Exit gracefully, without raising SystemExit
-                raise SystemExit(
-                    "Lakebridge `reconcile` is already installed and no override has been requested. Exiting..."
+                raise InstallationError(
+                    "Lakebridge `reconcile` is already installed and no override has been requested. Aborting."
                 )
         except NotFound:
             logger.info("Couldn't find existing `reconcile` installation")
@@ -499,9 +499,12 @@ def _verify_workspace_client(ws: WorkspaceClient) -> WorkspaceClient:
     """Verifies the workspace client configuration, ensuring it has the correct product info."""
 
     # Using reflection to set right value for _product_info for telemetry
-    product_info = getattr(ws.config, '_product_info')
-    if product_info[0] != "lakebridge":
-        setattr(ws.config, '_product_info', ('lakebridge', __version__))
+    try:
+        product_info = getattr(ws.config, '_product_info', (None, None))
+        if product_info[0] != "lakebridge":
+            setattr(ws.config, '_product_info', ('lakebridge', __version__))
+    except (AttributeError, TypeError, IndexError):
+        logger.debug("Could not set product info on workspace client config; SDK internals may have changed.")
 
     return ws
 
@@ -513,8 +516,9 @@ if __name__ == "__main__":
     # Warning: ensures logger for this file is not __main__.
     logger = get_logger(__file__)
 
+    _lakebridge_app = Lakebridge(__file__)
     app_installer = installer(
-        ws=lakebridge.create_workspace_client(),
+        ws=_lakebridge_app.create_workspace_client(),
         transpiler_repository=TranspilerRepository.user_home(),
         is_interactive=sys.stdin.isatty(),
     )

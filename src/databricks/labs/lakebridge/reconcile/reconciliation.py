@@ -92,6 +92,11 @@ class Reconciliation:
         src_schema: list[Schema],
         tgt_schema: list[Schema],
     ) -> DataReconcileOutput:
+        if not table_conf.join_columns:
+            raise ValueError(
+                f"join_columns must be specified for table '{table_conf.source_name}' "
+                f"to perform data reconciliation."
+            )
         data_reconcile_output = self._get_reconcile_output(table_conf, src_schema, tgt_schema)
         reconcile_output = data_reconcile_output
         if self._report_type in {"data", "all"}:

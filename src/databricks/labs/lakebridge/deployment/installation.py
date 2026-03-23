@@ -1,5 +1,5 @@
+import json
 import logging
-from ast import literal_eval
 from pathlib import Path
 
 from databricks.labs.blueprint.installation import Installation
@@ -43,8 +43,9 @@ class WorkspaceInstallation:
     def _get_local_version_file(self, file_path: Path):
         data = None
         with file_path.open("r") as f:
-            data = literal_eval(f.read())
-        assert data, "Unable to read local version file."
+            data = json.loads(f.read())
+        if not data:
+            raise ValueError(f"Unable to read local version file: {file_path}")
         local_installed_version = data["version"]
         try:
             SemVer.parse(local_installed_version)
