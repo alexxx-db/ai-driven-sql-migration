@@ -31,16 +31,10 @@ from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
 logger = logging.getLogger(__name__)
 
 
-# pylint: disable=too-many-public-methods
-class ApplicationContext:
-    def __init__(self, ws: WorkspaceClient):
-        self._ws = ws
+class _CoreContext:
+    """Core workspace properties: client, user, product info, installation, config."""
 
-    def replace(self, **kwargs):
-        """Replace cached properties for unit testing purposes."""
-        for key, value in kwargs.items():
-            self.__dict__[key] = value
-        return self
+    _ws: WorkspaceClient
 
     @property
     def workspace_client(self) -> WorkspaceClient:
@@ -59,6 +53,7 @@ class ApplicationContext:
         return Installation.assume_user_home(self.workspace_client, self.product_info.product_name())
 
     @cached_property
+<<<<<<< HEAD
     def transpile_config(self) -> TranspileConfig | None:
         try:
             return self.installation.load(TranspileConfig)
@@ -89,18 +84,21 @@ class ApplicationContext:
             reconcile=self.recon_config,
             profiler_dashboard=self.profiler_dashboard_config,
         )
+=======
+    def install_state(self) -> InstallState:
+        return InstallState.from_installation(self.installation)
+>>>>>>> 51bcb444 (Validation)
 
     @property
     def connect_config(self) -> Config:
         return self.workspace_client.config
 
     @cached_property
-    def install_state(self) -> InstallState:
-        return InstallState.from_installation(self.installation)
+    def prompts(self) -> Prompts:
+        return Prompts()
 
     @cached_property
     def sql_backend(self) -> SqlBackend:
-        # Installer to use only StatementExecutionBackend to eliminate the need for Databricks Connect
         return StatementExecutionBackend(self.workspace_client, self.connect_config.warehouse_id)
 
     @cached_property
@@ -108,36 +106,82 @@ class ApplicationContext:
         return CatalogOperations(self.workspace_client)
 
     @cached_property
-    def prompts(self) -> Prompts:
-        return Prompts()
+    def upgrades(self):
+        return Upgrades(self.product_info, self.installation)
+
+
+class _TranspileContext:
+    """Transpile-specific properties."""
+
+    # These are accessed via self.X which resolves through MRO to _CoreContext
+    installation: Installation
+    product_info: ProductInfo
+    prompts: Prompts
+
+    @cached_property
+    def transpile_config(self) -> TranspileConfig | None:
+        try:
+            return self.installation.load(TranspileConfig)  # type: ignore[attr-defined]
+        except NotFound as err:
+            logger.debug(f"Couldn't find existing `transpile` installation: {err}")
+            return None
+
+    @cached_property
+    def analyzer(self):
+        is_debug = logger.getEffectiveLevel() == logging.DEBUG
+        prompts = AnalyzerPrompts(self.prompts)  # type: ignore[attr-defined]
+        runner = AnalyzerRunner.create(is_debug)
+        return LakebridgeAnalyzer(prompts, runner)
+
+
+class _ReconcileContext:
+    """Reconcile-specific properties."""
+
+    @cached_property
+    def recon_config(self) -> ReconcileConfig | None:
+        try:
+            return self.installation.load(ReconcileConfig)  # type: ignore[attr-defined]
+        except NotFound as err:
+            logger.debug(f"Couldn't find existing `reconcile` installation: {err}")
+            return None
+
+
+class _DeploymentContext:
+    """Deployment-specific properties (jobs, dashboards, tables, switch)."""
 
     @cached_property
     def resource_configurator(self) -> ResourceConfigurator:
-        return ResourceConfigurator(self.workspace_client, self.prompts, self.catalog_operations)
+        return ResourceConfigurator(self.workspace_client, self.prompts, self.catalog_operations)  # type: ignore[attr-defined]
 
     @cached_property
     def table_deployment(self) -> TableDeployment:
-        return TableDeployment(self.sql_backend)
+        return TableDeployment(self.sql_backend)  # type: ignore[attr-defined]
 
     @cached_property
     def job_deployment(self) -> JobDeployment:
-        return JobDeployment(self.workspace_client, self.installation, self.install_state, self.product_info)
+        return JobDeployment(self.workspace_client, self.installation, self.install_state, self.product_info)  # type: ignore[attr-defined]
 
     @cached_property
     def dashboard_deployment(self) -> DashboardDeployment:
-        return DashboardDeployment(self.workspace_client, self.installation, self.install_state)
+        return DashboardDeployment(self.workspace_client, self.installation, self.install_state)  # type: ignore[attr-defined]
 
     @cached_property
+<<<<<<< HEAD
     def dashboard_manager(self) -> ProfilerDashboardManager:
         return ProfilerDashboardManager(self.workspace_client, self.installation, self.install_state)
+=======
+    def dashboard_manager(self) -> DashboardManager:
+        is_debug = logger.getEffectiveLevel() == logging.DEBUG
+        return DashboardManager(self.workspace_client, self.installation, self.install_state, is_debug)  # type: ignore[attr-defined]
+>>>>>>> 51bcb444 (Validation)
 
     @cached_property
     def recon_deployment(self) -> ReconDeployment:
         return ReconDeployment(
-            self.workspace_client,
-            self.installation,
-            self.install_state,
-            self.product_info,
+            self.workspace_client,  # type: ignore[attr-defined]
+            self.installation,  # type: ignore[attr-defined]
+            self.install_state,  # type: ignore[attr-defined]
+            self.product_info,  # type: ignore[attr-defined]
             self.table_deployment,
             self.job_deployment,
             self.dashboard_deployment,
@@ -146,9 +190,9 @@ class ApplicationContext:
     @cached_property
     def switch_deployment(self) -> SwitchDeployment:
         return SwitchDeployment(
-            self.workspace_client,
-            self.installation,
-            self.install_state,
+            self.workspace_client,  # type: ignore[attr-defined]
+            self.installation,  # type: ignore[attr-defined]
+            self.install_state,  # type: ignore[attr-defined]
         )
 
     @cached_property
@@ -165,25 +209,43 @@ class ApplicationContext:
     @cached_property
     def workspace_installation(self) -> WorkspaceInstallation:
         return WorkspaceInstallation(
-            self.workspace_client,
-            self.installation,
+            self.workspace_client,  # type: ignore[attr-defined]
+            self.installation,  # type: ignore[attr-defined]
             self.recon_deployment,
             self.switch_deployment,
+<<<<<<< HEAD
             self.profiler_dashboard_deployment,
             self.product_info,
             self.upgrades,
+=======
+            self.product_info,  # type: ignore[attr-defined]
+            self.upgrades,  # type: ignore[attr-defined]
+>>>>>>> 51bcb444 (Validation)
         )
 
-    @cached_property
-    def upgrades(self):
-        return Upgrades(self.product_info, self.installation)
+
+class ApplicationContext(_CoreContext, _TranspileContext, _ReconcileContext, _DeploymentContext):
+    """Main application context composing all sub-contexts.
+
+    Properties are organized into focused groups:
+    - _CoreContext: workspace client, user, product info, installation, SQL backend
+    - _TranspileContext: transpile config, analyzer
+    - _ReconcileContext: reconcile config
+    - _DeploymentContext: jobs, dashboards, tables, switch, workspace installation
+    """
+
+    def __init__(self, ws: WorkspaceClient):
+        self._ws = ws
+
+    def replace(self, **kwargs):
+        """Replace cached properties for unit testing purposes."""
+        for key, value in kwargs.items():
+            self.__dict__[key] = value
+        return self
 
     @cached_property
-    def analyzer(self):
-        is_debug = logger.getEffectiveLevel() == logging.DEBUG
-        prompts = AnalyzerPrompts(self.prompts)
-        runner = AnalyzerRunner.create(is_debug)
-        return LakebridgeAnalyzer(prompts, runner)
+    def remorph_config(self) -> LakebridgeConfiguration:
+        return LakebridgeConfiguration(transpile=self.transpile_config, reconcile=self.recon_config)
 
     def add_user_agent_extra(self, key: str, value: str) -> None:
         new_config = self._ws.config.copy().with_user_agent_extra(key, value)

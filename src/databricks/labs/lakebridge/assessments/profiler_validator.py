@@ -54,7 +54,9 @@ class NullValidationCheck(ValidationStrategy):
         input:
           connection: a DuckDB connection object
         """
-        result = connection.execute(f"SELECT COUNT(*) FROM {self.table} WHERE {self.column} IS NULL").fetchone()
+        quoted_table = f'"{self.table}"'
+        quoted_column = f'"{self.column}"'
+        result = connection.execute(f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_column} IS NULL").fetchone()
         if result:
             row_count = result[0]
             outcome = "FAIL" if row_count > 0 else "PASS"
@@ -79,7 +81,8 @@ class EmptyTableValidationCheck(ValidationStrategy):
           a ValidationOutcome object
         """
         try:
-            result = connection.execute(f"SELECT COUNT(*) FROM {self.table}").fetchone()
+            quoted_table = f'"{self.table}"'
+            result = connection.execute(f"SELECT COUNT(*) FROM {quoted_table}").fetchone()
             if result:
                 row_count = result[0]
                 outcome = "PASS" if row_count > 0 else "FAIL"
@@ -118,9 +121,8 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
             raise SchemaDefinitionLoadError(f"Error while loading schema definition file: '{e}'") from e
 
         # Ensure that the correct schema definition was loaded
-        assert (
-            schema_definition["source_tech"].lower() == self.source_tech.lower()
-        ), f"Incorrect schema definition type for source tech '{self.source_tech}'"
+        if schema_definition["source_tech"].lower() != self.source_tech.lower():
+            raise SchemaDefinitionLoadError(f"Incorrect schema definition type for source tech '{self.source_tech}'")
 
         return schema_definition
 
@@ -146,14 +148,14 @@ class ExtractSchemaValidationCheck(ValidationStrategy):
         # Validate that:
         # a) the table exists in the profiler extract database
         # b) the columns for the table exist
-        column_info_query = f"""
+        column_info_query = """
             SELECT column_name, data_type
               FROM information_schema.columns
-             WHERE table_schema = '{self.schema}'
-               AND table_name = '{self.table}'
+             WHERE table_schema = ?
+               AND table_name = ?
         """
         try:
-            result = connection.execute(column_info_query).fetchall()
+            result = connection.execute(column_info_query, [self.schema, self.table]).fetchall()
         except (CatalogException, ParserException, Error) as e:
             raise SchemaValidationError(
                 f"Could not query column information for table '{self.schema}.{self.table}' - {e}"

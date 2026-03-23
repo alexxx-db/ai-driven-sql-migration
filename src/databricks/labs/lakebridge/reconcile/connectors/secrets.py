@@ -35,7 +35,8 @@ class SecretsMixin:
         try:
             # Return the decoded secret value in string format
             secret = self._ws.secrets.get_secret(self._secret_scope, secret_key)
-            assert secret.value is not None
+            if secret.value is None:
+                raise ValueError(f"Secret value is None for scope: {self._secret_scope}, key: {secret_key}")
             return base64.b64decode(secret.value).decode("utf-8")
         except NotFound as e:
             raise NotFound(f'Secret does not exist with scope: {self._secret_scope} and key: {secret_key} : {e}') from e
