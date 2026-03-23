@@ -70,7 +70,7 @@ def extract_enum_field(data: Mapping[str, JsonValue], name: str, enum_type: type
     enum_value = extract_string_field(data, name)
     try:
         return enum_type[enum_value]
-    except ValueError as e:
+    except (KeyError, ValueError) as e:
         valid_values = [m.name for m in enum_type]
         msg = f"Invalid '{name}' entry in {data}, expecting one of [{', '.join(valid_values)}]: {enum_value}"
         raise ValueError(msg) from e

@@ -53,11 +53,8 @@ class SamplingSpecifications:
     def __post_init__(self):
         if not isinstance(self.type, SamplingSpecificationsType):
             self.type = SamplingSpecificationsType(str(self.type).lower())
-        # Disabled
         if self.type == SamplingSpecificationsType.FRACTION:
-            raise ValueError("SamplingSpecifications: 'FRACTION' type is disabled")
-        if self.type == SamplingSpecificationsType.FRACTION and (self.value is None or (not 0 < self.value < 1)):
-            raise ValueError("SamplingSpecifications: Fraction value must be greater than  0 and less than 1")
+            raise ValueError("SamplingSpecifications: 'FRACTION' type is currently disabled")
 
 
 DEFAULT_SAMPLE_ROWS = 50

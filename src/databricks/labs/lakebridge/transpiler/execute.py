@@ -212,8 +212,9 @@ def _process_non_mime_result(context: TranspilingContext, error_list: list[Trans
 def make_header(file_path: Path, errors: list[TranspileError]) -> str:
     header = ""
     failed_producing_output = False
+    sorted_errors = sorted(errors, key=lambda x: x.severity.name)
     diag_by_severity = {
-        severity.name: list(diags) for severity, diags in itertools.groupby(errors, key=lambda x: x.severity)
+        severity.name: list(diags) for severity, diags in itertools.groupby(sorted_errors, key=lambda x: x.severity)
     }
     line_numbers: dict[int, int] = {}
 

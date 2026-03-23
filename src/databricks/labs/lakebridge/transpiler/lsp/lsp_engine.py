@@ -646,6 +646,10 @@ class LSPEngine(TranspileEngine):
         executable, *args = command_line
 
         # Extract the environment, preparing to ensure that PATH is set correctly.
+        # Validate env var names from config to prevent injection of unexpected variables
+        for var_name in self._config.remorph.env_vars:
+            if not var_name.replace("_", "").replace("-", "").isalnum():
+                raise ValueError(f"Invalid environment variable name in transpiler config: {var_name!r}")
         env: dict[str, str] = os.environ | self._config.remorph.env_vars
         path = env.get("PATH", os.defpath)
 
@@ -712,11 +716,14 @@ class LSPEngine(TranspileEngine):
             "custom": self._config.custom,
         }
 
+    _CAPABILITY_POLL_INTERVAL_SECS: ClassVar[float] = 0.1
+    _CAPABILITY_MAX_POLLS: ClassVar[int] = 100
+
     async def _await_for_transpile_capability(self):
-        for _ in range(1, 100):
+        for _ in range(self._CAPABILITY_MAX_POLLS):
             if self._client.transpile_to_databricks_capability:
                 return
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(self._CAPABILITY_POLL_INTERVAL_SECS)
         if not self._client.transpile_to_databricks_capability:
             msg = f"LSP server did not register its {TRANSPILE_TO_DATABRICKS_METHOD} capability"
             raise FeatureRequestError(msg)

@@ -48,7 +48,8 @@ class CredentialManager:
         self._default_vault = self._credentials.get('secret_vault_type', 'local').lower()
         self._provider = secret_providers.get(self._default_vault)
         if not self._provider:
-            raise ValueError(f"Unsupported secret vault type: {self._default_vault}")
+            available = ", ".join(sorted(secret_providers.keys()))
+            raise ValueError(f"Unsupported secret vault type: '{self._default_vault}'. Available: {available}")
 
     def get_credentials(self, source: str) -> dict[str, Any]:
         if source not in self._credentials:
