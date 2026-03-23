@@ -1,7 +1,10 @@
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime
 
-from pyspark.sql import DataFrame
+from pyspark.errors import PySparkException
+from pyspark.sql import DataFrame, Row
+from pyspark.sql.functions import col
 
 from databricks.labs.lakebridge.reconcile.connectors.dialect_utils import DialectUtils
 from databricks.labs.lakebridge.reconcile.connectors.models import NormalizedIdentifier
@@ -43,6 +46,34 @@ class DataSource(ABC):
         error_msg = f"Runtime exception occurred while fetching {fetch_type} using {query} : {exception}"
         logger.warning(error_msg)
         raise DataSourceRuntimeException(error_msg) from exception
+
+    @staticmethod
+    def _lowercase_columns(df: DataFrame) -> DataFrame:
+        """Normalize all DataFrame column names to lowercase."""
+        return df.select([col(c).alias(c.lower()) for c in df.columns])
+
+    def _fetch_schema_metadata(
+        self,
+        schema_query: str,
+        load_df_fn,
+        normalize: bool,
+    ) -> list[Schema]:
+        """Shared schema-fetch pattern: log, load, lowercase, map.
+
+        Args:
+            schema_query: The SQL query to fetch schema metadata.
+            load_df_fn: A callable that returns a DataFrame for the given query.
+            normalize: Whether to normalize identifier names.
+        """
+        try:
+            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
+            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
+            df = load_df_fn(schema_query)
+            schema_metadata: list[Row] = self._lowercase_columns(df).collect()
+            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
+            return [self._map_meta_column(field, normalize) for field in schema_metadata]
+        except (RuntimeError, PySparkException) as e:
+            return self.log_and_throw_exception(e, "schema", schema_query)
 
     def _map_meta_column(self, meta_column, normalize: bool) -> Schema:
         """Create a normalized Schema DTO from the database metadata

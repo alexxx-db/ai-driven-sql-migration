@@ -166,131 +166,67 @@ class Reconciliation:
         src_schema,
         tgt_schema,
     ):
-        """
-        Creates a single Query, for the aggregates having the same group by columns. (Ex: 1)
-        If there are no group by columns, all the aggregates are clubbed together in a single query. (Ex: 2)
-        Examples:
-            1.  {
-                      "type": "MIN",
-                      "agg_cols": ["COL1"],
-                      "group_by_cols": ["COL4"]
-                    },
-                    {
-                      "type": "MAX",
-                      "agg_cols": ["COL2"],
-                      "group_by_cols": ["COL9"]
-                    },
-                    {
-                      "type": "COUNT",
-                      "agg_cols": ["COL2"],
-                      "group_by_cols": ["COL9"]
-                    },
-                    {
-                      "type": "AVG",
-                      "agg_cols": ["COL3"],
-                      "group_by_cols": ["COL4"]
-                    },
-              Query 1: SELECT MIN(COL1), AVG(COL3) FROM :table GROUP BY COL4
-              Rules: ID  | Aggregate Type | Column | Group By Column
-                         #1,   MIN,                      COL1,     COL4
-                         #2,   AVG,                     COL3,      COL4
-              -------------------------------------------------------
-              Query 2: SELECT MAX(COL2), COUNT(COL2) FROM :table GROUP BY COL9
-              Rules: ID  | Aggregate Type | Column | Group By Column
-                         #1,   MAX,                      COL2,     COL9
-                         #2,   COUNT,                COL2,      COL9
-          2.  {
-              "type": "MAX",
-              "agg_cols": ["COL1"]
-            },
-            {
-              "type": "SUM",
-              "agg_cols": ["COL2"]
-            },
-            {
-              "type": "MAX",
-              "agg_cols": ["COL3"]
-            }
-          Query: SELECT MAX(COL1), SUM(COL2), MAX(COL3) FROM :table
-          Rules: ID  | Aggregate Type | Column | Group By Column
-                     #1, MAX, COL1,
-                     #2, SUM, COL2,
-                     #3, MAX, COL3,
-        """
-
-        # build Aggregate queries for source, There could be one
-        # or more queries per table based on the group by columns
         src_agg_queries = AggregateQueryBuilder(
-            table_conf,
-            src_schema,
-            "source",
-            self._source_engine,
-            self._source,
+            table_conf, src_schema, "source", self._source_engine, self._source,
         ).build_queries()
-
-        # build Aggregate queries for target(Databricks),
         tgt_agg_queries = AggregateQueryBuilder(
-            table_conf,
-            tgt_schema,
-            "target",
-            self._target_engine,
-            self._target,
+            table_conf, tgt_schema, "target", self._target_engine, self._target,
         ).build_queries()
 
         table_agg_output: list[AggregateQueryOutput] = []
-
-        # Iterate over the grouped aggregates and reconcile the data
-        # Zip all the keys, read the source, target data for each Aggregate query
-        # and reconcile on the aggregate data
-        # For e.g., (source_query_GRP1, target_query_GRP1), (source_query_GRP2, target_query_GRP2)
         for src_query_with_rules, tgt_query_with_rules in zip(src_agg_queries, tgt_agg_queries):
-            # For each Aggregate query, read the Source and Target Data and add a hash column
-
-            rules_reconcile_output: list[AggregateQueryOutput] = []
-            src_data = None
-            tgt_data = None
-            joined_df = None
-            data_source_exception = None
-            try:
-                src_data = self._source.read_data(
-                    catalog=self._database_config.source_catalog,
-                    schema=self._database_config.source_schema,
-                    table=table_conf.source_name,
-                    query=src_query_with_rules.query,
-                    options=table_conf.jdbc_reader_options,
-                )
-                tgt_data = self._target.read_data(
-                    catalog=self._database_config.target_catalog,
-                    schema=self._database_config.target_schema,
-                    table=table_conf.target_name,
-                    query=tgt_query_with_rules.query,
-                    options=table_conf.jdbc_reader_options,
-                )
-                # Join the Source and Target Aggregated data
-                joined_df = join_aggregate_data(
-                    source=src_data,
-                    target=tgt_data,
-                    key_columns=src_query_with_rules.group_by_columns,
-                    persistence=self.intermediate_persist,
-                )
-            except DataSourceRuntimeException as e:
-                data_source_exception = e
-
-            # For each Aggregated Query, reconcile the data based on the rule
-            for rule in src_query_with_rules.rules:
-                if data_source_exception or joined_df is None or src_data is None or tgt_data is None:
-                    exception_msg = str(data_source_exception) if data_source_exception else "Data unavailable"
-                    rule_reconcile_output = DataReconcileOutput(exception=exception_msg)
-                else:
-                    rule_reconcile_output = reconcile_agg_data_per_rule(
-                        joined_df, src_data.columns, tgt_data.columns, rule
-                    )
-                rules_reconcile_output.append(AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output))
-
-            # For each table, there could be many Aggregated queries.
-            # Collect the list of Rule Reconcile output per each Aggregate query and append it to the list
-            table_agg_output.extend(rules_reconcile_output)
+            group_output = self._reconcile_one_aggregate_group(
+                table_conf, src_query_with_rules, tgt_query_with_rules,
+            )
+            table_agg_output.extend(group_output)
         return table_agg_output
+
+    def _read_and_join_aggregate_data(self, table_conf, src_query_with_rules, tgt_query_with_rules):
+        """Read source/target aggregate data and join them. Returns (joined_df, src_data, tgt_data)."""
+        src_data = self._source.read_data(
+            catalog=self._database_config.source_catalog,
+            schema=self._database_config.source_schema,
+            table=table_conf.source_name,
+            query=src_query_with_rules.query,
+            options=table_conf.jdbc_reader_options,
+        )
+        tgt_data = self._target.read_data(
+            catalog=self._database_config.target_catalog,
+            schema=self._database_config.target_schema,
+            table=table_conf.target_name,
+            query=tgt_query_with_rules.query,
+            options=table_conf.jdbc_reader_options,
+        )
+        joined_df = join_aggregate_data(
+            source=src_data,
+            target=tgt_data,
+            key_columns=src_query_with_rules.group_by_columns,
+            persistence=self.intermediate_persist,
+        )
+        return joined_df, src_data, tgt_data
+
+    def _reconcile_one_aggregate_group(self, table_conf, src_query_with_rules, tgt_query_with_rules):
+        """Reconcile one group of aggregate queries and return output per rule."""
+        src_data = None
+        tgt_data = None
+        joined_df = None
+        data_source_exception = None
+        try:
+            joined_df, src_data, tgt_data = self._read_and_join_aggregate_data(
+                table_conf, src_query_with_rules, tgt_query_with_rules,
+            )
+        except DataSourceRuntimeException as e:
+            data_source_exception = e
+
+        results: list[AggregateQueryOutput] = []
+        for rule in src_query_with_rules.rules:
+            if data_source_exception or joined_df is None or src_data is None or tgt_data is None:
+                exception_msg = str(data_source_exception) if data_source_exception else "Data unavailable"
+                output = DataReconcileOutput(exception=exception_msg)
+            else:
+                output = reconcile_agg_data_per_rule(joined_df, src_data.columns, tgt_data.columns, rule)
+            results.append(AggregateQueryOutput(rule=rule, reconcile_output=output))
+        return results
 
     def _get_sample_data(
         self,

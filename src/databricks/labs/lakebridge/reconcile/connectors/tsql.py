@@ -1,11 +1,9 @@
 import re
 import logging
-from datetime import datetime
 from collections.abc import Mapping
 
 from pyspark.errors import PySparkException
 from pyspark.sql import DataFrame, DataFrameReader, SparkSession
-from pyspark.sql.functions import col
 from sqlglot import Dialect
 
 from databricks.labs.lakebridge.reconcile.connectors.data_source import DataSource
@@ -99,7 +97,7 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             else:
                 spark_options = self._get_jdbc_reader_options(options)
                 df = self.reader(table_query, spark_options).load()
-            return df.select([col(column).alias(column.lower()) for column in df.columns])
+            return self._lowercase_columns(df)
         except (RuntimeError, PySparkException) as e:
             return self.log_and_throw_exception(e, "data", table_query)
 
@@ -122,15 +120,7 @@ class TSQLServerDataSource(DataSource, SecretsMixin, JDBCReaderMixin):
             ' ',
             _SCHEMA_QUERY.format(catalog=catalog, schema=schema, table=table),
         )
-        try:
-            logger.debug(f"Fetching schema using query: \n`{schema_query}`")
-            logger.info(f"Fetching Schema: Started at: {datetime.now()}")
-            df = self.reader(schema_query).load()
-            schema_metadata = df.select([col(c).alias(c.lower()) for c in df.columns]).collect()
-            logger.info(f"Schema fetched successfully. Completed at: {datetime.now()}")
-            return [self._map_meta_column(field, normalize) for field in schema_metadata]
-        except (RuntimeError, PySparkException) as e:
-            return self.log_and_throw_exception(e, "schema", schema_query)
+        return self._fetch_schema_metadata(schema_query, lambda q: self.reader(q).load(), normalize)
 
     def reader(self, query: str, options: Mapping[str, OptionalPrimitiveType] | None = None) -> DataFrameReader:
         if options is None:
