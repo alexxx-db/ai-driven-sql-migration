@@ -55,9 +55,12 @@ class SamplingSpecifications:
             self.type = SamplingSpecificationsType(str(self.type).lower())
         if self.type == SamplingSpecificationsType.FRACTION:
             raise ValueError("SamplingSpecifications: 'FRACTION' type is currently disabled")
+<<<<<<< HEAD
 
 
 DEFAULT_SAMPLE_ROWS = 50
+=======
+>>>>>>> 869a8af9 (Code Quality Fixes)
 
 
 DEFAULT_SAMPLE_ROWS = 50

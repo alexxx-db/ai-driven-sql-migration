@@ -231,6 +231,8 @@ class _TranspileConfigChecker:
         current_value = getattr(self._config, field_name)
         if current_value is None:
             prompted_value = self._prompts.question(prompt_question).strip()
+            if not prompted_value:
+                raise_validation_exception(f"A value is required for {field_name}.")
             logger.debug(f"Setting {field_name} to: {prompted_value!r}")
             validator(prompted_value, f"Invalid {field_name}, path does not exist: {prompted_value}")
             self._config = dataclasses.replace(self._config, **{field_name: prompted_value})
@@ -457,7 +459,6 @@ class _TranspileConfigChecker:
             engine = LSPEngine.from_config_path(path)
         else:
             engine = None
-        del transpiler_config_path
 
         # Step 2: Check the source dialect, assuming it has been specified, and infer the transpiler config path if necessary.
         source_dialect = self._source_dialect_override

@@ -175,10 +175,59 @@ class Reconciliation:
 
         table_agg_output: list[AggregateQueryOutput] = []
         for src_query_with_rules, tgt_query_with_rules in zip(src_agg_queries, tgt_agg_queries):
+<<<<<<< HEAD
             group_output = self._reconcile_one_aggregate_group(
                 table_conf, src_query_with_rules, tgt_query_with_rules,
             )
             table_agg_output.extend(group_output)
+=======
+            # For each Aggregate query, read the Source and Target Data and add a hash column
+
+            rules_reconcile_output: list[AggregateQueryOutput] = []
+            src_data = None
+            tgt_data = None
+            joined_df = None
+            data_source_exception = None
+            try:
+                src_data = self._source.read_data(
+                    catalog=self._database_config.source_catalog,
+                    schema=self._database_config.source_schema,
+                    table=table_conf.source_name,
+                    query=src_query_with_rules.query,
+                    options=table_conf.jdbc_reader_options,
+                )
+                tgt_data = self._target.read_data(
+                    catalog=self._database_config.target_catalog,
+                    schema=self._database_config.target_schema,
+                    table=table_conf.target_name,
+                    query=tgt_query_with_rules.query,
+                    options=table_conf.jdbc_reader_options,
+                )
+                # Join the Source and Target Aggregated data
+                joined_df = join_aggregate_data(
+                    source=src_data,
+                    target=tgt_data,
+                    key_columns=src_query_with_rules.group_by_columns,
+                    persistence=self.intermediate_persist,
+                )
+            except DataSourceRuntimeException as e:
+                data_source_exception = e
+
+            # For each Aggregated Query, reconcile the data based on the rule
+            for rule in src_query_with_rules.rules:
+                if data_source_exception or joined_df is None or src_data is None or tgt_data is None:
+                    exception_msg = str(data_source_exception) if data_source_exception else "Data unavailable"
+                    rule_reconcile_output = DataReconcileOutput(exception=exception_msg)
+                else:
+                    rule_reconcile_output = reconcile_agg_data_per_rule(
+                        joined_df, src_data.columns, tgt_data.columns, rule
+                    )
+                rules_reconcile_output.append(AggregateQueryOutput(rule=rule, reconcile_output=rule_reconcile_output))
+
+            # For each table, there could be many Aggregated queries.
+            # Collect the list of Rule Reconcile output per each Aggregate query and append it to the list
+            table_agg_output.extend(rules_reconcile_output)
+>>>>>>> 869a8af9 (Code Quality Fixes)
         return table_agg_output
 
     def _read_and_join_aggregate_data(self, table_conf, src_query_with_rules, tgt_query_with_rules):
