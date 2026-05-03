@@ -578,6 +578,7 @@ def visualize_profiler_results(
     *,
     w: WorkspaceClient,
 <<<<<<< HEAD
+<<<<<<< HEAD
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Deploys a profiler summary as a Databricks dashboard"""
@@ -594,6 +595,8 @@ def visualize_profiler_results(
     profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
     profiler_dashboard_installer.run(module="profiler_dashboard")
 =======
+=======
+>>>>>>> d948aec4 (Improve Create Profiler Dashboard CLI Usage (#2319))
     extract_file: str,
     source_tech: str,
     volume_path: str,
@@ -606,7 +609,27 @@ def visualize_profiler_results(
     ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
     ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
     ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
+<<<<<<< HEAD
 >>>>>>> 6c59ab85 (Refactoring)
+=======
+=======
+    transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
+) -> None:
+    """Deploys a profiler summary as a Databricks dashboard"""
+    from databricks.labs.lakebridge.install import installer  # pylint: disable=cyclic-import, import-outside-toplevel
+
+    ctx = ApplicationContext(w)
+    ctx.add_user_agent_extra("cmd", "visualize-profiler-results")
+
+    # Deploy the profiler dashboard and ingestion job
+    if not w.config.warehouse_id:
+        dbsql_id = _create_warehouse(w)
+        w.config.warehouse_id = dbsql_id
+    logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
+    profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
+    profiler_dashboard_installer.run(module="profiler_dashboard")
+>>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
+>>>>>>> d948aec4 (Improve Create Profiler Dashboard CLI Usage (#2319))
 
 
 def _test_database_connection(source_tech: str, raw_config: dict) -> None:

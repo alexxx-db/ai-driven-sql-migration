@@ -13,12 +13,17 @@ from databricks.sdk.errors import NotFound
 from databricks.sdk.service.iam import User
 
 from databricks.labs.lakebridge.analyzer.lakebridge_analyzer import LakebridgeAnalyzer, AnalyzerPrompts, AnalyzerRunner
-from databricks.labs.lakebridge.assessments.dashboards.dashboard_manager import DashboardManager
 
-from databricks.labs.lakebridge.config import TranspileConfig, ReconcileConfig, LakebridgeConfiguration
+from databricks.labs.lakebridge.config import (
+    TranspileConfig,
+    ReconcileConfig,
+    LakebridgeConfiguration,
+    ProfilerDashboardConfig,
+)
 from databricks.labs.lakebridge.deployment.configurator import ResourceConfigurator
-from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment
+from databricks.labs.lakebridge.deployment.dashboard import DashboardDeployment, ProfilerDashboardManager
 from databricks.labs.lakebridge.deployment.installation import WorkspaceInstallation
+from databricks.labs.lakebridge.deployment.profiler_dashboard import ProfilerDashboardDeployment
 from databricks.labs.lakebridge.deployment.recon import TableDeployment, JobDeployment, ReconDeployment
 from databricks.labs.lakebridge.deployment.switch import SwitchDeployment
 from databricks.labs.lakebridge.helpers.metastore import CatalogOperations
@@ -48,8 +53,41 @@ class _CoreContext:
         return Installation.assume_user_home(self.workspace_client, self.product_info.product_name())
 
     @cached_property
+<<<<<<< HEAD
     def install_state(self) -> InstallState:
         return InstallState.from_installation(self.installation)
+=======
+    def transpile_config(self) -> TranspileConfig | None:
+        try:
+            return self.installation.load(TranspileConfig)
+        except NotFound as err:
+            logger.debug(f"Couldn't find existing `transpile` installation: {err}")
+            return None
+
+    @cached_property
+    def recon_config(self) -> ReconcileConfig | None:
+        try:
+            return self.installation.load(ReconcileConfig)
+        except NotFound as err:
+            logger.debug(f"Couldn't find existing `reconcile` installation: {err}")
+            return None
+
+    @cached_property
+    def profiler_dashboard_config(self) -> ProfilerDashboardConfig | None:
+        try:
+            return self.installation.load(ProfilerDashboardConfig)
+        except NotFound as err:
+            logger.debug(f"Couldn't find existing profiler dashboard installation: {err}")
+            return None
+
+    @cached_property
+    def remorph_config(self) -> LakebridgeConfiguration:
+        return LakebridgeConfiguration(
+            transpile=self.transpile_config,
+            reconcile=self.recon_config,
+            profiler_dashboard=self.profiler_dashboard_config,
+        )
+>>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
 
     @property
     def connect_config(self) -> Config:
@@ -128,9 +166,14 @@ class _DeploymentContext:
         return DashboardDeployment(self.workspace_client, self.installation, self.install_state)  # type: ignore[attr-defined]
 
     @cached_property
+<<<<<<< HEAD
     def dashboard_manager(self) -> DashboardManager:
         is_debug = logger.getEffectiveLevel() == logging.DEBUG
         return DashboardManager(self.workspace_client, self.installation, self.install_state, is_debug)  # type: ignore[attr-defined]
+=======
+    def dashboard_manager(self) -> ProfilerDashboardManager:
+        return ProfilerDashboardManager(self.workspace_client, self.installation, self.install_state)
+>>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
 
     @cached_property
     def recon_deployment(self) -> ReconDeployment:
@@ -153,14 +196,31 @@ class _DeploymentContext:
         )
 
     @cached_property
+    def profiler_dashboard_deployment(self) -> ProfilerDashboardDeployment:
+        return ProfilerDashboardDeployment(
+            self.workspace_client,
+            self.installation,
+            self.install_state,
+            self.product_info,
+            self.job_deployment,
+            self.dashboard_manager,
+        )
+
+    @cached_property
     def workspace_installation(self) -> WorkspaceInstallation:
         return WorkspaceInstallation(
             self.workspace_client,  # type: ignore[attr-defined]
             self.installation,  # type: ignore[attr-defined]
             self.recon_deployment,
             self.switch_deployment,
+<<<<<<< HEAD
             self.product_info,  # type: ignore[attr-defined]
             self.upgrades,  # type: ignore[attr-defined]
+=======
+            self.profiler_dashboard_deployment,
+            self.product_info,
+            self.upgrades,
+>>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
         )
 
 
