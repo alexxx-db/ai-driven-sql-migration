@@ -360,9 +360,26 @@ class WorkspaceInstaller:
         )
 
     def _configure_reconcile(self) -> ReconcileConfig:
+<<<<<<< HEAD
         existing = self._load_existing_config(ReconcileConfig, "reconcile")
         if existing is not None:
             return existing
+=======
+        try:
+            self._installation.load(ReconcileConfig)
+            logger.info("Lakebridge `reconcile` is already installed on this workspace.")
+            if not self._prompts.confirm("Do you want to override the existing installation?"):
+                raise InstallationError(
+                    "Lakebridge `reconcile` is already installed and no override has been requested. Aborting."
+                )
+        except NotFound:
+            logger.info("Couldn't find existing `reconcile` installation")
+        except (PermissionDenied, SerdeError, ValueError, AttributeError):
+            install_dir = self._installation.install_folder()
+            logger.warning(
+                f"Existing `reconcile` installation at {install_dir} is corrupted. Continuing new installation..."
+            )
+>>>>>>> 49336a92 (Bug Fixes)
 
         config = self._configure_new_reconcile_installation()
         logger.info("Finished configuring lakebridge `reconcile`.")
