@@ -176,10 +176,14 @@ class Reconciliation:
         table_agg_output: list[AggregateQueryOutput] = []
         for src_query_with_rules, tgt_query_with_rules in zip(src_agg_queries, tgt_agg_queries):
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 0fb16d72 (Refactoring)
             group_output = self._reconcile_one_aggregate_group(
                 table_conf, src_query_with_rules, tgt_query_with_rules,
             )
             table_agg_output.extend(group_output)
+<<<<<<< HEAD
 =======
             # For each Aggregate query, read the Source and Target Data and add a hash column
 
@@ -228,6 +232,8 @@ class Reconciliation:
             # Collect the list of Rule Reconcile output per each Aggregate query and append it to the list
             table_agg_output.extend(rules_reconcile_output)
 >>>>>>> 869a8af9 (Code Quality Fixes)
+=======
+>>>>>>> 0fb16d72 (Refactoring)
         return table_agg_output
 
     def _read_and_join_aggregate_data(self, table_conf, src_query_with_rules, tgt_query_with_rules):

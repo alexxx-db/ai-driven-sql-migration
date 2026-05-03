@@ -145,6 +145,7 @@ class WorkspaceInstaller:
 
     def configure(self, module: str) -> LakebridgeConfiguration:
 <<<<<<< HEAD
+<<<<<<< HEAD
         transpile_config = None
         reconcile_config = None
         include_switch = False
@@ -168,6 +169,8 @@ class WorkspaceInstaller:
             switch_use_serverless=switch_use_serverless,
         )
 =======
+=======
+>>>>>>> 0fb16d72 (Refactoring)
         match module:
             case "transpile":
                 logger.info("Configuring lakebridge `transpile`.")
@@ -195,7 +198,34 @@ class WorkspaceInstaller:
                 return LakebridgeConfiguration(None, None, self._configure_profiler_dashboard())
             case _:
                 raise ValueError(f"Invalid input: {module}")
+<<<<<<< HEAD
 >>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
+=======
+=======
+        transpile_config = None
+        reconcile_config = None
+        include_switch = False
+        switch_use_serverless = True
+
+        if module in {"transpile", "all"}:
+            logger.info("Configuring lakebridge `transpile`.")
+            transpile_config = self._configure_transpile()
+            include_switch = self._include_llm
+            switch_use_serverless = self._switch_use_serverless
+        if module in {"reconcile", "all"}:
+            logger.info("Configuring lakebridge `reconcile`.")
+            reconcile_config = self._configure_reconcile()
+        if module not in {"transpile", "reconcile", "all"}:
+            raise ValueError(f"Invalid module: {module}")
+
+        return LakebridgeConfiguration(
+            transpile_config,
+            reconcile_config,
+            include_switch=include_switch,
+            switch_use_serverless=switch_use_serverless,
+        )
+>>>>>>> 6c59ab85 (Refactoring)
+>>>>>>> 0fb16d72 (Refactoring)
 
     def _is_testing(self):
         return self._product_info.product_name() != "lakebridge"
@@ -361,6 +391,7 @@ class WorkspaceInstaller:
 
     def _configure_reconcile(self) -> ReconcileConfig:
 <<<<<<< HEAD
+<<<<<<< HEAD
         existing = self._load_existing_config(ReconcileConfig, "reconcile")
         if existing is not None:
             return existing
@@ -380,6 +411,11 @@ class WorkspaceInstaller:
                 f"Existing `reconcile` installation at {install_dir} is corrupted. Continuing new installation..."
             )
 >>>>>>> 49336a92 (Bug Fixes)
+=======
+        existing = self._load_existing_config(ReconcileConfig, "reconcile")
+        if existing is not None:
+            return existing
+>>>>>>> 0fb16d72 (Refactoring)
 
         config = self._configure_new_reconcile_installation()
         logger.info("Finished configuring lakebridge `reconcile`.")

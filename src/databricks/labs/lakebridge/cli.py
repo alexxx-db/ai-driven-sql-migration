@@ -143,6 +143,7 @@ def _add_user_agent_extras_transpile(
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 class _TranspileConfigChecker:
     """Helper class for the 'transpile' command to check and consolidate the configuration."""
@@ -548,6 +549,8 @@ class _TranspileConfigChecker:
 
 
 >>>>>>> ad34af62 (Validation)
+=======
+>>>>>>> 0fb16d72 (Refactoring)
 async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: TranspileEngine) -> RootJsonValue:
     """Transpiles source dialect to databricks dialect"""
     _override_workspace_client_config(ctx, config.sdk_config)
@@ -985,6 +988,7 @@ def visualize_profiler_results(
     w: WorkspaceClient,
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Deploys a profiler summary as a Databricks dashboard"""
@@ -1003,6 +1007,8 @@ def visualize_profiler_results(
 =======
 =======
 >>>>>>> d948aec4 (Improve Create Profiler Dashboard CLI Usage (#2319))
+=======
+>>>>>>> a5b5af89 (Refactoring)
     extract_file: str,
     source_tech: str,
     volume_path: str,
@@ -1019,6 +1025,8 @@ def visualize_profiler_results(
 >>>>>>> 6c59ab85 (Refactoring)
 =======
 =======
+=======
+>>>>>>> 0fb16d72 (Refactoring)
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
 ) -> None:
     """Deploys a profiler summary as a Databricks dashboard"""
@@ -1034,8 +1042,28 @@ def visualize_profiler_results(
     logger.debug(f"Warehouse ID used for running the profiler dashboard: {w.config.warehouse_id}.")
     profiler_dashboard_installer = installer(w, transpiler_repository, is_interactive=True)
     profiler_dashboard_installer.run(module="profiler_dashboard")
+<<<<<<< HEAD
 >>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
+<<<<<<< HEAD
 >>>>>>> d948aec4 (Improve Create Profiler Dashboard CLI Usage (#2319))
+=======
+=======
+=======
+    extract_file: str,
+    source_tech: str,
+    volume_path: str,
+    catalog_name: str,
+    schema_name: str,
+    ctx_factory: Callable[[WorkspaceClient], ApplicationContext] = ApplicationContext,
+) -> None:
+    """Deploys a profiler summary as a Databricks dashboard"""
+    ctx = ctx_factory(w)
+    ctx.add_user_agent_extra("cmd", "create-profiler-dashboard")
+    ctx.dashboard_manager.upload_duckdb_to_uc_volume(extract_file, volume_path)
+    ctx.dashboard_manager.create_profiler_summary_dashboard(source_tech, catalog_name, schema_name)
+>>>>>>> 6c59ab85 (Refactoring)
+>>>>>>> 0fb16d72 (Refactoring)
+>>>>>>> a5b5af89 (Refactoring)
 
 
 def _test_database_connection(source_tech: str, raw_config: dict) -> None:

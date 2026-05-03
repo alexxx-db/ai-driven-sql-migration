@@ -46,6 +46,7 @@ class JobDeployment:
 
     def _update_or_create_recon_job(
 <<<<<<< HEAD
+<<<<<<< HEAD
         self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str
     ) -> str:
         job_settings = self._recon_job_settings(
@@ -79,6 +80,14 @@ class JobDeployment:
         self._install_state.jobs[name] = str(new_job.job_id)
         return str(new_job.job_id)
 >>>>>>> ad34af62 (Validation)
+=======
+        self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str
+    ) -> str:
+        job_settings = self._recon_job_settings(
+            name, "run_reconciliation", "Run the reconciliation process", recon_config, lakebridge_wheel_path
+        )
+        return self._update_or_create_job(name, job_settings)
+>>>>>>> 0fb16d72 (Refactoring)
 
     def _recon_job_settings(
         self,
@@ -197,13 +206,15 @@ class JobDeployment:
         name: str,
         profiler_dashboard_config: ProfilerDashboardConfig,
         lakebridge_wheel_path: str,
-        _retry: bool = True,
     ) -> str:
+<<<<<<< HEAD
 <<<<<<< HEAD
         job_settings = self._profiler_ingestion_job_settings(
             name, "ingest_profiler_extract", "Ingest Lakebridge profiler results",
             catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path,
 =======
+=======
+>>>>>>> 0fb16d72 (Refactoring)
         description = "Ingest Lakebridge profiler results"
         task_key = "ingest_profiler_extract"
         extract_path = profiler_dashboard_config.extract_file_path
@@ -223,7 +234,15 @@ class JobDeployment:
             resolved_volume_location,
             source_tech,
             lakebridge_wheel_path,
+<<<<<<< HEAD
 >>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
+=======
+=======
+        job_settings = self._profiler_ingestion_job_settings(
+            name, "ingest_profiler_extract", "Ingest Lakebridge profiler results",
+            catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path,
+>>>>>>> 6c59ab85 (Refactoring)
+>>>>>>> 0fb16d72 (Refactoring)
         )
         return self._update_or_create_job(name, job_settings)
 
@@ -242,12 +261,16 @@ class JobDeployment:
 <<<<<<< HEAD
                 if not _retry:
                     raise ValueError(f"Failed to create or update job `{name}` after retry")
+<<<<<<< HEAD
                 return self._update_or_create_job(name, job_settings, _retry=False)
 =======
 =======
                 if not _retry:
                     raise ValueError(f"Failed to create or update job `{name}` after retry")
 >>>>>>> ad34af62 (Validation)
+=======
+<<<<<<< HEAD
+>>>>>>> 0fb16d72 (Refactoring)
                 return self._update_or_create_profiler_ingestion_job(
 <<<<<<< HEAD
                     name, profiler_dashboard_config, lakebridge_wheel_path
@@ -255,7 +278,13 @@ class JobDeployment:
                     name, catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path, _retry=False
 >>>>>>> 51bcb444 (Validation)
                 )
+<<<<<<< HEAD
 >>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
+=======
+=======
+                return self._update_or_create_job(name, job_settings, _retry=False)
+>>>>>>> 6c59ab85 (Refactoring)
+>>>>>>> 0fb16d72 (Refactoring)
 
         logger.info(f"Creating new job configuration for job `{name}`")
         new_job = self._ws.jobs.create(**job_settings)
