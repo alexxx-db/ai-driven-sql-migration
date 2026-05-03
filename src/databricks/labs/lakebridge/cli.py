@@ -142,6 +142,432 @@ def _add_user_agent_extras_transpile(
     logger.debug(f"User: {user}")
 
 
+<<<<<<< HEAD
+=======
+class _TranspileConfigChecker:
+    """Helper class for the 'transpile' command to check and consolidate the configuration."""
+
+    #
+    # Configuration parameters can come from 3 sources:
+    #  - Command-line arguments (e.g., --input-source, --output-folder, etc.)
+    #  - The configuration file, stored in the user's workspace home directory.
+    #  - User prompts.
+    #
+    # The conventions are:
+    #  - Command-line arguments take precedence over the configuration file.
+    #  - Prompting is a last resort, only used when a required configuration value has not been provided and does not
+    #    have a default value.
+    #  - An invalid value results in a halt, with the error message indicating the source of the invalid value. We do
+    #    NOT attempt to recover from invalid values by looking for another source:
+    #     - Prompting unexpectedly will break scripting and automation.
+    #     - Using an alternate value will need to confusion because the behaviour will not be what the user expects.
+    #
+    # This ensures that we distinguish between:
+    #  - Invalid command-line arguments:
+    #    Resolution: fix the command-line argument value.
+    #  - Invalid prompt responses:
+    #    Resolution: provide a valid response to the prompt.
+    #  - Invalid configuration file values:
+    #    Resolution: fix the configuration file value, or provide the command-line argument to override it.
+    #
+    # Implementation details:
+    #  - For command-line arguments and prompted values, we:
+    #     - Log the raw values (prior to validation) at DEBUG level, using the repr() rendering.
+    #     - Validate the values immediately, with the error message on failure mentioning the source of the value.
+    #     - Only update the configuration if the validation passes.
+    #  - Prompting only occurs when a value is required, but not provided via the command-line argument or the
+    #    configuration file.
+    #  - In addition to the above, a final validation of everything is required: this ensures that values from the
+    #    configuration file are validated, and if we have a failure we know that's the source because other sources
+    #    were already checked.
+    #  - The interplay between the source dialect and the transpiler config path is handled with care:
+    #      - The source dialect, needs to be consistent with the engine that transpiler config path, refers to.
+    #      - The source dialect can be used to infer the transpiler config path.
+    #
+    _config: TranspileConfig
+    """The workspace configuration for transpiling, updated from command-line arguments."""
+    _prompts: Prompts
+    """Prompting system, for requesting configuration that hasn't been provided."""
+    _source_dialect_override: str | None = None
+    """The source dialect provided on the command-line, if any."""
+    _transpiler_repository: TranspilerRepository
+    """The repository where available transpilers are installed."""
+
+    def __init__(
+        self,
+        config: TranspileConfig | None,
+        prompts: Prompts,
+        transpiler_repository: TranspilerRepository,
+    ) -> None:
+        if config is None:
+            logger.debug("No workspace transpile configuration, starting from defaults.")
+            config = TranspileConfig()
+        self._config = config
+        self._prompts = prompts
+        self._transpiler_repository = transpiler_repository
+        self._source_dialect_override = None
+
+    def _use_path_field(
+        self,
+        value: str | None,
+        field_name: str,
+        flag_name: str,
+        validator: Callable[[str, str], None],
+    ) -> None:
+        """Helper to set a config path field from a CLI argument with validation."""
+        if value is not None:
+            logger.debug(f"Setting {field_name} to: {value!r}")
+            validator(value, f"Invalid path for '--{flag_name}', does not exist: {value}")
+            self._config = dataclasses.replace(self._config, **{field_name: value})
+
+    def _check_path_field(
+        self,
+        field_name: str,
+        prompt_question: str,
+        validator: Callable[[str, str], None],
+        config_error_template: str,
+    ) -> None:
+        """Helper to check/prompt for a config path field."""
+        current_value = getattr(self._config, field_name)
+        if current_value is None:
+            prompted_value = self._prompts.question(prompt_question).strip()
+            logger.debug(f"Setting {field_name} to: {prompted_value!r}")
+            validator(prompted_value, f"Invalid {field_name}, path does not exist: {prompted_value}")
+            self._config = dataclasses.replace(self._config, **{field_name: prompted_value})
+        else:
+            validator(current_value, config_error_template.format(current_value))
+
+    @staticmethod
+    def _validate_transpiler_config_path(transpiler_config_path: str, msg: str) -> None:
+        """Validate the transpiler config path: it must be a valid path that exists."""
+        # Note: the content is not validated here, but during loading of the engine.
+        if not Path(transpiler_config_path).exists():
+            raise_validation_exception(msg)
+
+    def use_transpiler_config_path(self, transpiler_config_path: str | None) -> None:
+        self._use_path_field(
+            transpiler_config_path, "transpiler_config_path", "transpiler-config-path",
+            self._validate_transpiler_config_path,
+        )
+
+    def use_source_dialect(self, source_dialect: str | None) -> None:
+        if source_dialect is not None:
+            # Defer validation: depends on the transpiler config path, we'll deal with this later.
+            logger.debug(f"Pending source_dialect override: {source_dialect!r}")
+            self._source_dialect_override = source_dialect
+
+    @staticmethod
+    def _validate_overrides_file(overrides_file: str, msg: str) -> None:
+        """Validate the overrides file: it must be a valid path that exists."""
+        # Note: in addition to this check, later we verify the transpiler supports it.
+        if not Path(overrides_file).exists():
+            raise_validation_exception(msg)
+
+    def use_overrides_file(self, overrides_file: str | None) -> None:
+        if overrides_file is not None:
+            logger.debug(f"Setting overrides_file to: {overrides_file!r}")
+            msg = f"Invalid path for '--overrides-file', does not exist: {overrides_file}"
+            self._validate_overrides_file(overrides_file, msg)
+            try:
+                self._set_config_transpiler_option("overrides-file", overrides_file)
+            except ValueError:
+                # TODO: Update the `config.yml` format to disallow incompatible `transpiler_options`.
+                msg = "Cannot use --overrides-file; workspace config.yml has incompatible transpiler_options."
+                raise_validation_exception(msg)
+
+    def use_target_technology(self, target_technology: str | None) -> None:
+        if target_technology is not None:
+            logger.debug(f"Setting target_technology to: {target_technology!r}")
+            # Cannot validate this here: depends on the transpiler engine, and will be checked later.
+            try:
+                self._set_config_transpiler_option("target-tech", target_technology)
+            except ValueError:
+                # TODO: Update the `config.yml` format to disallow incompatible `transpiler_options`.
+                msg = "Cannot use --target-technology; workspace config.yml has incompatible transpiler_options."
+                raise_validation_exception(msg)
+
+    @staticmethod
+    def _validate_input_source(input_source: str, msg: str) -> None:
+        """Validate the input source: it must be a path that exists."""
+        if not Path(input_source).exists():
+            raise_validation_exception(msg)
+
+    def use_input_source(self, input_source: str | None) -> None:
+        self._use_path_field(input_source, "input_source", "input-source", self._validate_input_source)
+
+    def _check_input_source(self) -> None:
+        self._check_path_field(
+            "input_source",
+            "Enter input SQL path (directory/file)",
+            self._validate_input_source,
+            "Invalid input source path configured, does not exist: {}",
+        )
+
+    @staticmethod
+    def _validate_output_folder(output_folder: str, msg: str) -> None:
+        """Validate the output folder: it doesn't have to exist, but its parent must."""
+        if not Path(output_folder).parent.exists():
+            raise_validation_exception(msg)
+
+    def use_output_folder(self, output_folder: str | None) -> None:
+        self._use_path_field(output_folder, "output_folder", "output-folder", self._validate_output_folder)
+
+    def _check_output_folder(self) -> None:
+        self._check_path_field(
+            "output_folder",
+            "Enter output folder path (directory)",
+            self._validate_output_folder,
+            "Invalid output folder configured, parent does not exist for: {}",
+        )
+
+    @staticmethod
+    def _validate_error_file_path(error_file_path: str | None, msg: str) -> None:
+        """Value the error file path: it doesn't have to exist, but its parent must."""
+        if error_file_path is not None and not Path(error_file_path).parent.exists():
+            raise_validation_exception(msg)
+
+    def use_error_file_path(self, error_file_path: str | None) -> None:
+        self._use_path_field(error_file_path, "error_file_path", "error-file-path", self._validate_error_file_path)
+
+    def _check_error_file_path(self) -> None:
+        config_error_file_path = self._config.error_file_path
+        self._validate_error_file_path(
+            config_error_file_path,
+            f"Invalid error file path configured, parent does not exist for: {config_error_file_path}",
+        )
+
+    def use_skip_validation(self, skip_validation: str | None) -> None:
+        if skip_validation is not None:
+            skip_validation_lower = skip_validation.lower()
+            if skip_validation_lower not in {"true", "false"}:
+                msg = f"Invalid value for '--skip-validation': {skip_validation!r} must be 'true' or 'false'."
+                raise_validation_exception(msg)
+            new_skip_validation = skip_validation_lower == "true"
+            logger.debug(f"Setting skip_validation to: {new_skip_validation!r}")
+            self._config = dataclasses.replace(self._config, skip_validation=new_skip_validation)
+
+    def use_catalog_name(self, catalog_name: str | None) -> None:
+        if catalog_name:
+            logger.debug(f"Setting catalog_name to: {catalog_name!r}")
+            self._config = dataclasses.replace(self._config, catalog_name=catalog_name)
+
+    def use_schema_name(self, schema_name: str | None) -> None:
+        if schema_name:
+            logger.debug(f"Setting schema_name to: {schema_name!r}")
+            self._config = dataclasses.replace(self._config, schema_name=schema_name)
+
+    def _set_config_transpiler_option(self, flag: str, value: str) -> None:
+        transpiler_options: JsonObject
+        match self._config.transpiler_options:
+            case None:
+                transpiler_options = {flag: value}
+            case Mapping() as found_options:
+                transpiler_options = {**found_options, flag: value}
+            case found_options:
+                # TODO: Update `config.yml' to constrain `transpiler_options` to be a dict[str, str].
+                msg = f"Incompatible transpiler options configured, must be a mapping: {found_options!r}"
+                raise ValueError(msg)
+        self._config = dataclasses.replace(self._config, transpiler_options=transpiler_options)
+
+    def _configure_transpiler_config_path(self, source_dialect: str) -> TranspileEngine | None:
+        """Configure the transpiler config path based on the requested source dialect."""
+        # Names of compatible transpiler engines for the given dialect.
+        compatible_transpilers = self._transpiler_repository.transpilers_with_dialect(source_dialect)
+        match len(compatible_transpilers):
+            case 0:
+                # Nothing found for the specified dialect, fail.
+                return None
+            case 1:
+                # Only one transpiler available for the specified dialect, use it.
+                transpiler_name = next(iter(compatible_transpilers))
+                logger.debug(f"Using only transpiler available for dialect {source_dialect!r}: {transpiler_name!r}")
+            case _:
+                # Multiple transpilers available for the specified dialect, prompt for which to use.
+                logger.debug(
+                    f"Multiple transpilers available for dialect {source_dialect!r}: {compatible_transpilers!r}"
+                )
+                transpiler_name = self._prompts.choice("Select the transpiler:", list(compatible_transpilers))
+        transpiler_config_path = self._transpiler_repository.transpiler_config_path(transpiler_name)
+        logger.info(f"Lakebridge will use the {transpiler_name} transpiler.")
+        self._config = dataclasses.replace(self._config, transpiler_config_path=str(transpiler_config_path))
+        return LSPEngine.from_config_path(transpiler_config_path)
+
+    def _configure_source_dialect(
+        self, source_dialect: str, engine: TranspileEngine | None, msg_prefix: str
+    ) -> TranspileEngine:
+        """Configure the source dialect, if possible, and return the transpiler engine."""
+        if engine is None:
+            engine = self._configure_transpiler_config_path(source_dialect)
+            if engine is None:
+                supported_dialects = ", ".join(self._transpiler_repository.all_dialects())
+                msg = f"{msg_prefix}: {source_dialect!r} (supported dialects: {supported_dialects})"
+                raise_validation_exception(msg)
+            else:
+                self._config = dataclasses.replace(self._config, source_dialect=source_dialect)
+        else:
+            # Check the source dialect against the engine.
+            if source_dialect not in engine.supported_dialects:
+                supported_dialects_description = ", ".join(engine.supported_dialects)
+                msg = f"Invalid value for '--source-dialect': {source_dialect!r} must be one of: {supported_dialects_description}"
+                raise_validation_exception(msg)
+            self._config = dataclasses.replace(self._config, source_dialect=source_dialect)
+        return engine
+
+    def _prompt_source_dialect(self) -> TranspileEngine:
+        # This is similar to the post-install prompting for the source dialect.
+        supported_dialects = self._transpiler_repository.all_dialects()
+        match len(supported_dialects):
+            case 0:
+                msg = "No transpilers are available, install using 'install-transpile' or use --transpiler-conf-path'."
+                raise_validation_exception(msg)
+            case 1:
+                # Only one dialect available, use it.
+                source_dialect = next(iter(supported_dialects))
+                logger.debug(f"Using only source dialect available: {source_dialect!r}")
+            case _:
+                # Multiple dialects available, prompt for which to use.
+                logger.debug(f"Multiple source dialects available, choice required: {supported_dialects!r}")
+                source_dialect = self._prompts.choice("Select the source dialect:", list(supported_dialects))
+        engine = self._configure_transpiler_config_path(source_dialect)
+        if engine is None:
+            raise_validation_exception("No transpiler engine available for a supported dialect; configuration is invalid.")
+        self._config = dataclasses.replace(self._config, source_dialect=source_dialect)
+        return engine
+
+    def _check_lsp_engine(self) -> TranspileEngine:
+        #
+        # This is somewhat complicated:
+        #  - If there is no transpiler config path, we need to try to infer it from the source dialect.
+        #  - If there is no source dialect, we need to prompt for it: but that depends on the transpiler config path.
+        #
+        # With this in mind, the steps here are:
+        # 1. If the transpiler config path is set, check it exists and load the engine.
+        # 2. If the source dialect is set,
+        #      - If the transpiler config path is set: validate the source dialect against the engine.
+        #      - If the transpiler config path is not set: search for a transpiler that satisfies the dialect:
+        #          * If one is found, we're good to go.
+        #          * If more than one is found, prompt for the transpiler config path.
+        #          * If none are found, fail: no transpilers available for the specified dialect.
+        #    At this point we have either halted, or we have a valid transpiler path and source dialect.
+        # 3. If the source dialect is not set, we need to:
+        #      a) Load the set of available dialects: just for the engine if transpiler config path is set, or for all
+        #         available transpilers if not.
+        #      b) Depending on the available dialects:
+        #          - If there is only one dialect available, set it as the source dialect.
+        #          - If there are multiple dialects available, prompt for which to use.
+        #          - If there are no dialects available, fail: no transpilers available.
+        #    At this point we have either halted, or we have a valid transpiler path and source dialect.
+        #
+        # TODO: Deal with the transpiler options, and filtering them for the engine.
+        #
+
+        # Step 1: Check the transpiler config path.
+        engine: TranspileEngine | None
+        transpiler_config_path = self._config.transpiler_config_path
+        if transpiler_config_path is not None:
+            self._validate_transpiler_config_path(
+                transpiler_config_path,
+                f"Error: Invalid value for '--transpiler-config-path': '{str(transpiler_config_path)}', file does not exist.",
+            )
+            path = Path(transpiler_config_path)
+            engine = LSPEngine.from_config_path(path)
+        else:
+            engine = None
+        del transpiler_config_path
+
+        # Step 2: Check the source dialect, assuming it has been specified, and infer the transpiler config path if necessary.
+        source_dialect = self._source_dialect_override
+        if source_dialect is not None:
+            logger.debug(f"Setting source_dialect override: {source_dialect!r}")
+            engine = self._configure_source_dialect(source_dialect, engine, "Invalid value for '--source-dialect'")
+        else:
+            source_dialect = self._config.source_dialect
+            if source_dialect is not None:
+                logger.debug(f"Using configured source_dialect: {source_dialect!r}")
+                engine = self._configure_source_dialect(source_dialect, engine, "Invalid configured source dialect")
+            else:
+                # Step 3: Source dialect is not set, we need to prompt for it.
+                logger.debug("No source_dialect available, prompting.")
+                engine = self._prompt_source_dialect()
+        return engine
+
+    def _check_transpiler_options(self, engine: TranspileEngine) -> None:
+        if not isinstance(engine, LSPEngine):
+            return
+        if self._config.source_dialect is None:
+            raise ValueError("Source dialect must be set before checking transpiler options.")
+        options_for_dialect = engine.options_for_dialect(self._config.source_dialect)
+        transpiler_options = self._config.transpiler_options
+        if transpiler_options is None:
+            transpiler_options = {}
+        elif not isinstance(transpiler_options, Mapping):
+            logger.warning(f"Ignoring transpiler_options in config.yml, must be a mapping: {transpiler_options!r}")
+            transpiler_options = {}
+        # Only checks if the option is present, does not validate the value.
+        # TODO: Validate the value for CHOICE/CONFIRM options.
+        # TODO: Handle FORCE options: these are fixed by the transpiler, and cannot be overridden.
+        checked_options = {
+            option.flag: (
+                transpiler_options[option.flag]
+                if option.flag in transpiler_options
+                else self._handle_missing_transpiler_option(option)
+            )
+            for option in options_for_dialect
+        }
+        self._config = dataclasses.replace(self._config, transpiler_options=checked_options)
+
+    def _handle_missing_transpiler_option(self, option: LSPConfigOptionV1) -> JsonValue:
+        # Semantics during configuration:
+        #  - Entries are present in the config file for all options the LSP server needs for a dialect.
+        #  - If a value is `None`, it means the user wants the value to be left unset.
+        #  - There is no 'provide it later' option: either it's set, or it's unset.
+        # As a corner case, if there is no entry present it means the user wasn't prompted. Here we have
+        # some complexity. We have two ways of obtaining a value:
+        #  - The user could provide it on the command-line, using --target-technology or --overrides-file.
+        #    Problem: via command-line options there's no way to indicate 'no value'.
+        #  - We could prompt for it, assuming the user is running interactively.
+        # In terms of what is required by the option:
+        #  - If the option has a default of <none>, it means that no value is required.
+        #  - Everything else requires a value.
+        #
+        # This leads to the following business rules:
+        #  - If the option has a default of <none> that means that no value is required, no further action is required.
+        #  - Otherwise, a value is required: prompt for it.
+        #
+        # TODO: When adding non-interactive support, the otherwise branch need to be modified:
+        #     1. If it can be provided by the command-line, fail and ask the user to provide it.
+        #     2. If it cannot be provided by the command-line, prompt for it if we are running interactively.
+        #     3. If we cannot prompt because we are not running interactively, use the default if there is one.
+        #     4. Fail: the only way to provide a value is via the config.yml, which can be set via 'install-transpile'.
+
+        if option.is_optional():
+            return None
+        return option.prompt_for_value(self._prompts)
+
+    def check(self) -> tuple[TranspileConfig, TranspileEngine]:
+        """Checks that all configuration parameters are present and valid."""
+        logger.debug(f"Checking config: {self._config!r}")
+
+        self._check_input_source()
+        self._check_output_folder()
+        self._check_error_file_path()
+        # No validation here required for:
+        #   - skip_validation: it is a boolean flag, mandatory, and has a default: so no further validation is needed.
+        #   - catalog_name and schema_name: they are mandatory, but have a default.
+        # TODO: if validation is enabled, we should check that the catalog and schema names are valid.
+
+        # This covers: transpiler_config_path, source_dialect
+        engine = self._check_lsp_engine()
+
+        # Last thing: the configuration may have transpiler-specific options, check them.
+        self._check_transpiler_options(engine)
+
+        config = self._config
+        logger.debug(f"Validated config: {config!r}")
+        return config, engine
+
+
+>>>>>>> ad34af62 (Validation)
 async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: TranspileEngine) -> RootJsonValue:
     """Transpiles source dialect to databricks dialect"""
     _override_workspace_client_config(ctx, config.sdk_config)

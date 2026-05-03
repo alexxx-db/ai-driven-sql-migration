@@ -54,9 +54,12 @@ class _CoreContext:
 
     @cached_property
 <<<<<<< HEAD
+<<<<<<< HEAD
     def install_state(self) -> InstallState:
         return InstallState.from_installation(self.installation)
 =======
+=======
+>>>>>>> ad34af62 (Validation)
     def transpile_config(self) -> TranspileConfig | None:
         try:
             return self.installation.load(TranspileConfig)
@@ -87,7 +90,14 @@ class _CoreContext:
             reconcile=self.recon_config,
             profiler_dashboard=self.profiler_dashboard_config,
         )
+<<<<<<< HEAD
 >>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
+=======
+=======
+    def install_state(self) -> InstallState:
+        return InstallState.from_installation(self.installation)
+>>>>>>> 51bcb444 (Validation)
+>>>>>>> ad34af62 (Validation)
 
     @property
     def connect_config(self) -> Config:
@@ -167,6 +177,7 @@ class _DeploymentContext:
 
     @cached_property
 <<<<<<< HEAD
+<<<<<<< HEAD
     def dashboard_manager(self) -> DashboardManager:
         is_debug = logger.getEffectiveLevel() == logging.DEBUG
         return DashboardManager(self.workspace_client, self.installation, self.install_state, is_debug)  # type: ignore[attr-defined]
@@ -174,6 +185,15 @@ class _DeploymentContext:
     def dashboard_manager(self) -> ProfilerDashboardManager:
         return ProfilerDashboardManager(self.workspace_client, self.installation, self.install_state)
 >>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
+=======
+    def dashboard_manager(self) -> ProfilerDashboardManager:
+        return ProfilerDashboardManager(self.workspace_client, self.installation, self.install_state)
+=======
+    def dashboard_manager(self) -> DashboardManager:
+        is_debug = logger.getEffectiveLevel() == logging.DEBUG
+        return DashboardManager(self.workspace_client, self.installation, self.install_state, is_debug)  # type: ignore[attr-defined]
+>>>>>>> 51bcb444 (Validation)
+>>>>>>> ad34af62 (Validation)
 
     @cached_property
     def recon_deployment(self) -> ReconDeployment:
@@ -214,6 +234,7 @@ class _DeploymentContext:
             self.recon_deployment,
             self.switch_deployment,
 <<<<<<< HEAD
+<<<<<<< HEAD
             self.product_info,  # type: ignore[attr-defined]
             self.upgrades,  # type: ignore[attr-defined]
 =======
@@ -221,6 +242,15 @@ class _DeploymentContext:
             self.product_info,
             self.upgrades,
 >>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
+=======
+            self.profiler_dashboard_deployment,
+            self.product_info,
+            self.upgrades,
+=======
+            self.product_info,  # type: ignore[attr-defined]
+            self.upgrades,  # type: ignore[attr-defined]
+>>>>>>> 51bcb444 (Validation)
+>>>>>>> ad34af62 (Validation)
         )
 
 
@@ -246,6 +276,7 @@ class ApplicationContext(_CoreContext, _TranspileContext, _ReconcileContext, _De
     @cached_property
     def remorph_config(self) -> LakebridgeConfiguration:
         return LakebridgeConfiguration(transpile=self.transpile_config, reconcile=self.recon_config)
+<<<<<<< HEAD
 
     # Properties that depend on the WorkspaceClient and must be invalidated when it changes.
     _WS_DEPENDENT_PROPERTIES = (
@@ -263,6 +294,8 @@ class ApplicationContext(_CoreContext, _TranspileContext, _ReconcileContext, _De
         "switch_deployment",
         "workspace_installation",
     )
+=======
+>>>>>>> ad34af62 (Validation)
 
     def add_user_agent_extra(self, key: str, value: str) -> None:
         new_config = self._ws.config.copy().with_user_agent_extra(key, value)

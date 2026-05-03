@@ -60,6 +60,9 @@ class SamplingSpecifications:
 DEFAULT_SAMPLE_ROWS = 50
 
 
+DEFAULT_SAMPLE_ROWS = 50
+
+
 @dataclass
 class SamplingOptions:
     method: SamplingOptionMethod

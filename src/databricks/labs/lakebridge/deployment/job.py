@@ -45,12 +45,40 @@ class JobDeployment:
         self._install_state.save()
 
     def _update_or_create_recon_job(
+<<<<<<< HEAD
         self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str
     ) -> str:
         job_settings = self._recon_job_settings(
             name, "run_reconciliation", "Run the reconciliation process", recon_config, lakebridge_wheel_path
         )
         return self._update_or_create_job(name, job_settings)
+=======
+        self, name, recon_config: ReconcileConfig, lakebridge_wheel_path: str, _retry: bool = True
+    ) -> str:
+        description = "Run the reconciliation process"
+        task_key = "run_reconciliation"
+
+        job_settings = self._recon_job_settings(name, task_key, description, recon_config, lakebridge_wheel_path)
+        if name in self._install_state.jobs:
+            try:
+                job_id = int(self._install_state.jobs[name])
+                logger.info(f"Updating configuration for job `{name}`, job_id={job_id}")
+                self._ws.jobs.reset(job_id, JobSettings(**job_settings))
+                return str(job_id)
+            except InvalidParameterValue:
+                del self._install_state.jobs[name]
+                logger.warning(f"Job `{name}` does not exist anymore for some reason")
+                if not _retry:
+                    raise ValueError(f"Failed to create or update job `{name}` after retry")
+                return self._update_or_create_recon_job(name, recon_config, lakebridge_wheel_path, _retry=False)
+
+        logger.info(f"Creating new job configuration for job `{name}`")
+        new_job = self._ws.jobs.create(**job_settings)
+        if new_job.job_id is None:
+            raise ValueError(f"Failed to create job `{name}`: job_id is None")
+        self._install_state.jobs[name] = str(new_job.job_id)
+        return str(new_job.job_id)
+>>>>>>> ad34af62 (Validation)
 
     def _recon_job_settings(
         self,
@@ -169,6 +197,7 @@ class JobDeployment:
         name: str,
         profiler_dashboard_config: ProfilerDashboardConfig,
         lakebridge_wheel_path: str,
+        _retry: bool = True,
     ) -> str:
 <<<<<<< HEAD
         job_settings = self._profiler_ingestion_job_settings(
@@ -210,12 +239,21 @@ class JobDeployment:
                 del self._install_state.jobs[name]
                 logger.warning(f"Job `{name}` does not exist anymore for some reason")
 <<<<<<< HEAD
+<<<<<<< HEAD
                 if not _retry:
                     raise ValueError(f"Failed to create or update job `{name}` after retry")
                 return self._update_or_create_job(name, job_settings, _retry=False)
 =======
+=======
+                if not _retry:
+                    raise ValueError(f"Failed to create or update job `{name}` after retry")
+>>>>>>> ad34af62 (Validation)
                 return self._update_or_create_profiler_ingestion_job(
+<<<<<<< HEAD
                     name, profiler_dashboard_config, lakebridge_wheel_path
+=======
+                    name, catalog_name, schema_name, volume_location, source_tech, lakebridge_wheel_path, _retry=False
+>>>>>>> 51bcb444 (Validation)
                 )
 >>>>>>> c3d21feb (Improve Create Profiler Dashboard CLI Usage (#2319))
 
